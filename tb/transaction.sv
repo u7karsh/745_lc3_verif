@@ -4,8 +4,8 @@ class Instruction; //{
       ADD     = 32'b0001,
       AND     = 32'b0101,
       NOT     = 32'b1001,
-      //BR,
-      //JMP,
+      BR      = 32'b0000, 
+      JMP     = 32'b1100,
       LD      = 32'b0010,
       LDR     = 32'b0110,
       LDI     = 32'b1010,
@@ -28,6 +28,7 @@ class Instruction; //{
    reg [8:0] pcOffset9;  
    reg [5:0] pcOffset6;  
    reg [2:0] baseR;  
+   bit       N, Z, P;
 
    function new();
    endfunction
@@ -44,6 +45,8 @@ class Instruction; //{
          ST :   return "ST ";
          STR:   return "STR";
          STI:   return "STI";
+         BR :   return "BR ";
+         JMP:   return "JMP";
       endcase
    endfunction
 
@@ -106,6 +109,15 @@ class Instruction; //{
          STR: begin //{
                  encInst[11:9]  = this.src1;
                  encInst[8:0]   = {this.baseR, this.pcOffset6};
+              end //}
+
+         BR:  begin //{
+                 encInst[11:9]  = {N, Z, P};
+                 encInst[8:0]   = this.pcOffset9;
+              end //}
+              
+         JMP: begin //{
+                 encInst[8:6]   = this.baseR;
               end //}
          //TODO: Assert on default
       endcase

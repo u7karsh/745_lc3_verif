@@ -1,7 +1,7 @@
 `include "transaction.sv"
 `define DEBUG
 
-module Model( Lc3_if lif );
+module Driver( Lc3_if lif, Lc3_mon_if monif );
 
 wire clk;
 assign clk            = lif.clk;
@@ -12,23 +12,15 @@ Instruction instMem[];
 
 reg [15:0] dataMem[0:65536];
 
-function void asmTranslate();
-   instMem                = new [5];
-   for( int i = 0; i < 5; i++ ) begin
-      instMem[i]          = new();
-      instMem[i].opcode   = Instruction::ADD;
-      instMem[i].dst      = i;
-      instMem[i].src1     = 0;
-      instMem[i].src2     = i + 1;
-      instMem[i].immValid = $urandom_range(0,2);
-      instMem[i].imm      = $urandom_range(0,32);
-   end
-endfunction
-
+// Monitor - fetch
 initial begin
-   // Populate inst mem
-   asmTranslate();
+   `ifdef DEBUG
+      $monitor("pc: %0x, npc: %0x, instrmem_rd: %b", monif.FETCH.pc, monif.FETCH.npc, monif.FETCH.instrmem_rd);
+   `endif
+end
 
+// Driver
+initial begin
    //---------- RESET PHASE --------
    lif.reset          = 1;
    lif.complete_instr = 0;
