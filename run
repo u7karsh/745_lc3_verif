@@ -1,0 +1,2 @@
+vlog -sv dut/* tb/*
+vsim -c -novopt -do "run -all" top
