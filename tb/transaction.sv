@@ -75,7 +75,7 @@ class Instruction; //{
    function reg[15:0] encodeInst();
       // Default values
       reg[15:0] encInst = 16'h0;
-      encInst[15:12]    = this.opcode;
+      $cast(encInst[15:12], this.opcode);
       encInst[11:9]     = this.dst;
    
       // Encoder

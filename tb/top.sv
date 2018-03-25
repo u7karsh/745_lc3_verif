@@ -1,5 +1,6 @@
 `define DEBUG
-`define BASE_ADDR 16'h3000;
+`define BASE_ADDR    16'h3000;
+`define DYN_INST_CNT 1000000
 
 `include "transaction.sv"
 `include "drivemon.sv"
@@ -68,7 +69,7 @@ Instruction instMemEntry         = new();
 function void asmTranslate( integer numTrans );
    dmon.instMem                  = new [numTrans];
    for( int i = 0; i < numTrans; i++ ) begin
-      if( instMemEntry.randomize() with { opcode inside {ADD, AND, NOT, LD, LDR, LDI, LEA, ST, STI}; } ) begin
+      if( instMemEntry.randomize() with { opcode inside {ADD, BR, AND, NOT, LD, LDR, LDI, LEA, ST, STI, STR}; } ) begin
          dmon.instMem[i]         = instMemEntry.copy();
       end else begin
          $error("Failed to randomize instMemEntry");
@@ -76,7 +77,7 @@ function void asmTranslate( integer numTrans );
    end
 endfunction
 initial begin
-   asmTranslate(100);
+   asmTranslate(10);
 end
 
 //-------------------------------- MONITOR / DRIVER -----------------------
