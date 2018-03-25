@@ -1,7 +1,5 @@
-`include "transaction.sv"
-`define DEBUG
 
-module Driver( Lc3_if lif, Lc3_mon_if monif );
+module Driver( Lc3_if lif );
 
 wire clk;
 assign clk            = lif.clk;
@@ -11,13 +9,6 @@ integer instMemIndex;
 Instruction instMem[];
 
 reg [15:0] dataMem[0:65536];
-
-// Monitor - fetch
-initial begin
-   `ifdef DEBUG
-      $monitor("pc: %0x, npc: %0x, instrmem_rd: %b", monif.FETCH.pc, monif.FETCH.npc, monif.FETCH.instrmem_rd);
-   `endif
-end
 
 // Driver
 initial begin

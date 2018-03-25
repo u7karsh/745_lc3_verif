@@ -17,20 +17,37 @@ class Instruction; //{
    
    typedef reg [2:0] reg_t;
 
-   opcode_t  opcode;
-   reg_t     dst;
-   reg_t     src1;
-   reg_t     src2;
+   rand opcode_t  opcode;
+   rand reg_t     dst;
+   rand reg_t     src1;
+   rand reg_t     src2;
 
-   bit       immValid;
-   reg [4:0] imm;
+   rand bit       immValid;
+   rand reg [4:0] imm;
 
-   reg [8:0] pcOffset9;  
-   reg [5:0] pcOffset6;  
-   reg [2:0] baseR;  
-   bit       N, Z, P;
+   rand reg [8:0] pcOffset9;  
+   rand reg [5:0] pcOffset6;  
+   rand reg [2:0] baseR;  
+   rand bit       N, Z, P;
 
    function new();
+   endfunction
+
+   function Instruction copy();
+      copy           = new();
+      copy.opcode    = opcode;
+      copy.dst       = dst;
+      copy.src1      = src1;
+      copy.src2      = src2;
+      copy.immValid  = immValid;
+      copy.imm       = imm;
+      copy.pcOffset9 = pcOffset9;
+      copy.pcOffset6 = pcOffset6;
+      copy.baseR     = baseR;
+      copy.N         = N;
+      copy.Z         = Z;
+      copy.P         = P;
+      return copy;
    endfunction
 
    function string opcode2str();
@@ -51,8 +68,8 @@ class Instruction; //{
    endfunction
 
    function void print();
-      $display("%s, dst: %0d, src1: %0d, src2: %0d, immValid: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 
-               opcode2str(),dst, src1, src2, immValid, imm, pcOffset9, pcOffset6, baseR);
+      $display("%t [INSTR] %s, dst: %0d, src1: %0d, src2: %0d, immValid: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 
+               $time, opcode2str(),dst, src1, src2, immValid, imm, pcOffset9, pcOffset6, baseR);
    endfunction
 
    function reg[15:0] encodeInst();
