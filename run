@@ -1,2 +1,2 @@
 vlog -sv dut/* tb/top.sv
-vsim -c -do "run -all" top
+vsim -c -do "run -all" top -suppress 8637
