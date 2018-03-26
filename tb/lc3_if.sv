@@ -36,11 +36,13 @@ interface Lc3_mon_if(input bit clk);
 
    //controller
    logic        enable_updatePC, enable_fetch, enable_decode, enable_execute, enable_writeback, br_taken, bypass_alu_1, bypass_alu_2, bypass_mem_1, bypass_mem_2, mem_state;
+   logic [15:0] Instr_dout;
 
    modport FETCH(output npc, pc, instrmem_rd);
    modport DECODE(output IR, E_Control, npc_out, Mem_Control, W_Control);
    modport EXECUTE(output aluout, W_Control_out, Mem_Control_out, M_Data, dr, sr1, sr2, NZP, IR_Exec, pcout);
    modport WB(output psr, VSR1, VSR2);
    modport MEM(output Data_addr, Data_rd, Data_din, memout);
-   modport CTRLR(output enable_updatePC, enable_fetch, enable_decode, enable_execute, enable_writeback, br_taken, bypass_alu_1, bypass_alu_2, bypass_mem_1, bypass_mem_2, mem_state);
+   modport CTRLR(output enable_updatePC, enable_fetch, enable_decode, enable_execute, enable_writeback, 
+                   br_taken, bypass_alu_1, bypass_alu_2, bypass_mem_1, bypass_mem_2, mem_state, Instr_dout);
 endinterface

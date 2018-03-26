@@ -50,7 +50,7 @@ class Instruction; //{
       return copy;
    endfunction
 
-   function string opcode2str();
+   static function string op2str( reg [3:0] opcode );
       case( opcode )
          ADD:   return "ADD";
          AND:   return "AND";
@@ -65,7 +65,13 @@ class Instruction; //{
          BR :   return "BR ";
          JMP:   return "JMP";
       endcase
+      return "UNDEF";
    endfunction
+
+   function string opcode2str();
+      return op2str( opcode );
+   endfunction
+
 
    function void print();
       $display("%t [INSTR] %s, dst: %0d, src1: %0d, src2: %0d, immValid: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 

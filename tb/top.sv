@@ -63,6 +63,7 @@ assign monif.CTRLR.bypass_alu_2     = dut.Ctrl.bypass_alu_2;
 assign monif.CTRLR.bypass_mem_1     = dut.Ctrl.bypass_mem_1; 
 assign monif.CTRLR.bypass_mem_2     = dut.Ctrl.bypass_mem_2; 
 assign monif.CTRLR.mem_state        = dut.Ctrl.mem_state; 
+assign monif.CTRLR.Instr_dout       = dut.Ctrl.Instr_dout;
 
 //------------------------------------ GENERATOR --------------------------
 Instruction instMemEntry         = new();
