@@ -78,7 +78,7 @@ function void asmTranslate( integer numTrans );
    end
 endfunction
 initial begin
-   asmTranslate(10);
+   asmTranslate(1000);
 end
 
 //-------------------------------- MONITOR / DRIVER -----------------------
