@@ -1,19 +1,24 @@
 `define DEBUG
-`define BASE_ADDR    16'h3000;
+`define STALL_THRESH 1000
+`define BASE_ADDR    16'h3000
 `define DYN_INST_CNT 1000000
+//`define TOP_MONITOR
 
+`include "types.sv"
+`include "interface.sv"
 `include "transaction.sv"
-`include "drivemon.sv"
-`include "lc3_if.sv"
+`include "agent.sv"
+`include "monitor.sv"
+`include "driver.sv"
+`include "env.sv"
+`include "test.sv"
 
 module top();
 
+Test test;
+
 reg clk = 0;
 always #5 clk = ~clk;
-
-Lc3_dr_if lc3if( clk );
-Lc3_mon_if monif( clk );
-
 
 // Fetch connections
 assign monif.reset                  = lc3if.reset;
@@ -65,34 +70,52 @@ assign monif.CTRLR.bypass_mem_2     = dut.Ctrl.bypass_mem_2;
 assign monif.CTRLR.mem_state        = dut.Ctrl.mem_state; 
 assign monif.CTRLR.Instr_dout       = dut.Ctrl.Instr_dout;
 
-//------------------------------------ GENERATOR --------------------------
-Instruction instMemEntry         = new();
-function void asmTranslate( integer numTrans );
-   dmon.instMem                  = new [numTrans];
-   for( int i = 0; i < numTrans; i++ ) begin
-      if( instMemEntry.randomize() with { opcode inside {ADD, BR, AND, NOT, LD, LDR, LDI, LEA, ST, STI, STR}; } ) begin
-         dmon.instMem[i]         = instMemEntry.copy();
-      end else begin
-         $error("Failed to randomize instMemEntry");
-      end
-   end
-endfunction
+// Interface instantiation
+Lc3_dr_if lc3if( clk );
+Lc3_mon_if monif( clk );
+
 initial begin
-   asmTranslate(100);
+   `ifdef TOP_MONITOR
+      $monitor("%t [TOP] reset: %0b pc: %0x instrmem_rd: %0b instr_dout: %0x data_addr: %0x complete_instr: %0b complete_data: %0b data_dout: %0x data_rd: %0b data_din: %0x", $time, lc3if.reset, lc3if.pc, lc3if.instrmem_rd, lc3if.Instr_dout, lc3if.Data_addr, lc3if.complete_instr, lc3if.complete_data, lc3if.Data_dout, lc3if.Data_rd, lc3if.Data_din );
+   `endif
+   test = new( lc3if, monif, 1000, 65536 );
+   test.run();
+   $finish;
 end
 
-//-------------------------------- MONITOR / DRIVER -----------------------
-Drivemon dmon( lc3if, monif );
+// Why do we need pull down??
+wire data_rd;
+wire [15:0] Data_addr;
+pulldown(Data_addr[0]);
+pulldown(Data_addr[1]);
+pulldown(Data_addr[2]);
+pulldown(Data_addr[3]);
+pulldown(Data_addr[4]);
+pulldown(Data_addr[5]);
+pulldown(Data_addr[6]);
+pulldown(Data_addr[7]);
+pulldown(Data_addr[8]);
+pulldown(Data_addr[9]);
+pulldown(Data_addr[10]);
+pulldown(Data_addr[11]);
+pulldown(Data_addr[12]);
+pulldown(Data_addr[13]);
+pulldown(Data_addr[14]);
+pulldown(Data_addr[15]);
+pulldown(data_rd);
+assign lc3if.Data_rd = data_rd;
+assign lc3if.Data_addr = Data_addr;
+
 //--------------------------------------- DUT -----------------------------
 LC3 dut(	.clock(lc3if.clk), 
          .reset(lc3if.reset), 
          .pc(lc3if.pc), 
          .instrmem_rd(lc3if.instrmem_rd), 
          .Instr_dout(lc3if.Instr_dout), 
-         .Data_addr(lc3if.Data_addr), 
+         .Data_addr(Data_addr), 
          .complete_instr(lc3if.complete_instr), 
          .complete_data(lc3if.complete_data),  
          .Data_din(lc3if.Data_din), 
          .Data_dout(lc3if.Data_dout), 
-         .Data_rd(lc3if.Data_rd)	);
+         .Data_rd(data_rd)	);
 endmodule
