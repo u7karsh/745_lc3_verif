@@ -1,2 +1,12 @@
-vlog -sv dut/* tb/top.sv
-vsim -c -do "run -all" top -suppress 8637
+#!/bin/bash
+
+vlog -sv dut/*
+
+run_test(){
+   vlog -sv +define+TEST=$1 tb/top.sv
+   vsim -c -do "run -all" top -suppress 8637 | tee ${1}.log
+}
+
+## All tests
+run_test BaseStoreLoadTest
+run_test Test 

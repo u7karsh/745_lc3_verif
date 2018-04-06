@@ -22,6 +22,7 @@ class Driver extends Agent;
             stallCnt                 = 0;
             dynInstCount            += 1;
             instMemIndex             = driverIf.pc - `BASE_ADDR;
+            $display("memIndex: %d\n", instMemIndex);
             if( instMemIndex >= getInstMemSize() || dynInstCount >= `DYN_INST_CNT )
                break;
    
@@ -41,10 +42,13 @@ class Driver extends Agent;
             driverIf.Data_dout            = readDataMem(driverIf.Data_addr);
          end else begin
             writeDataMem( driverIf.Data_addr, driverIf.Data_din );
+            driverIf.complete_data        = 1;
          end
    
          // One clock delay
          @(posedge driverIf.clk);
+         //driverIf.complete_instr          = 0;
+         //driverIf.complete_data           = 0;
       end
    endtask //}
 

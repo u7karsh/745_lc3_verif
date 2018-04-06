@@ -3,19 +3,32 @@ class Test; //{
    virtual Lc3_dr_if  driverIf;
    virtual Lc3_mon_if monIf;
    Env                env;
+   integer            instCnt = 0;
+   string             name;
 
    // Populates env's instruct mem
-   // TODO: Do a reg/memory warmup to remove
-   // don't cares
-   function void genAsm( integer numTrans );
+   // This is the base function that will be overridden in
+   // all tests. It doesn't have LD/SD and BR as mem warmup
+   // is not done
+   virtual function void sequenceInstr();
+      integer numTrans             = 10;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
       for( int i = 0; i < numTrans; i++ ) begin
          if( instMemEntry.randomize() with { opcode inside {ADD, /*BR,*/ AND, NOT/*, LD, LDR, LDI, LEA, ST, STI, STR*/}; } ) begin
-            env.instMem[i]         = instMemEntry.copy();
+            pushInst(instMemEntry);
          end else begin
-            $error("Failed to randomize instMemEntry");
+            $fatal(1, "Failed to randomize instMemEntry");
          end
+      end
+   endfunction
+
+   function void pushInst( Instruction inst );
+      if( instCnt < env.instMem.size() ) begin
+         env.instMem[instCnt]  = inst.copy();
+         instCnt              += 1;
+      end else begin
+         $fatal(1, "instMem overflown: size: %0d (instCnt: %0x)", env.instMem.size(), instCnt);
       end
    endfunction
 
@@ -25,20 +38,19 @@ class Test; //{
          env.dataMem[i] = defaultVal;
    endfunction
 
-   function new( virtual Lc3_dr_if driverIf, virtual Lc3_mon_if monIf, integer asmTrans, integer dataMemSize );
+   function new( virtual Lc3_dr_if driverIf, virtual Lc3_mon_if monIf, integer dataMemSize, string className="Test" );
+      this.name     = className;
       this.driverIf = driverIf;
       this.monIf    = monIf;
 
       // Create and Connect environment
       env           = new(driverIf, monIf);
 
-      // Generate random asm
-      genAsm( asmTrans );
-
       // Create and clear the data mem before program start
       createDataMem(dataMemSize, 0);
    endfunction
 
+   // End of simulation function
    function void eos();
       $display("----------- END OF TEST -------------");
       $display("----------- BEGIN REPORT ------------");
@@ -53,6 +65,10 @@ class Test; //{
    endfunction
 
    task run();
+      // Sequence instructions
+      sequenceInstr();
+
+      $display("--------------- Running Test: %s -------------", name);
       env.run();
       eos();
    endtask 

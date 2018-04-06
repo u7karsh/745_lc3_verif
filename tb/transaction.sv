@@ -33,6 +33,22 @@ class Instruction; //{
    function new();
    endfunction
 
+   function void create(opcode_t opcode, reg_t dst, reg_t src1, reg_t src2, bit immValid, 
+      reg[4:0] imm, reg[8:0] pcOffset9, reg[5:0] pcOffset6, reg[2:0] baseR, bit N, bit Z, bit P);
+      this.opcode    = opcode;
+      this.dst       = dst;
+      this.src1      = src1;
+      this.src2      = src2;
+      this.immValid  = immValid;
+      this.imm       = imm;
+      this.pcOffset9 = pcOffset9;
+      this.pcOffset6 = pcOffset6;
+      this.baseR     = baseR;
+      this.N         = N;
+      this.Z         = Z;
+      this.P         = P;
+   endfunction
+
    function Instruction copy();
       copy           = new();
       copy.opcode    = opcode;
