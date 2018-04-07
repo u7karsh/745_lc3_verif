@@ -18,13 +18,13 @@ class BaseStoreLoadTest extends Test;
       // Initialize all regs to 0
       // AND R0, R0, #0
       for( int i = 0; i < 8; i++ ) begin
-         instMemEntry.create(Instruction::AND, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+         instMemEntry.create(AND, i, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
          pushInst(instMemEntry);
       end
 
       // Warmup 0-100 addresses
       for( int i = 0; i < 100; i++ ) begin
-         instMemEntry.create(Instruction::STR, 0, 0, 0, 0, 0, 0, i, 0, 0, 0, 0);
+         instMemEntry.create(STR, 0, 0, 0, 0, 0, 0, i, 0, 0, 0, 0);
          pushInst(instMemEntry);
       end
 

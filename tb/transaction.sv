@@ -1,22 +1,4 @@
 class Instruction; //{
-
-   typedef enum {
-      ADD     = 32'b0001,
-      AND     = 32'b0101,
-      NOT     = 32'b1001,
-      BR      = 32'b0000, 
-      JMP     = 32'b1100,
-      LD      = 32'b0010,
-      LDR     = 32'b0110,
-      LDI     = 32'b1010,
-      LEA     = 32'b1110,
-      ST      = 32'b0011,
-      STR     = 32'b0111,
-      STI     = 32'b1011
-   } opcode_t;
-   
-   typedef reg [2:0] reg_t;
-
    rand opcode_t  opcode;
    rand reg_t     dst;
    rand reg_t     src1;
@@ -31,6 +13,7 @@ class Instruction; //{
    rand bit       N, Z, P;
 
    function new();
+      this.opcode    = UNDEF;
    endfunction
 
    function void create(opcode_t opcode, reg_t dst, reg_t src1, reg_t src2, bit immValid, 

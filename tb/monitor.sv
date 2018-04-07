@@ -3,6 +3,7 @@
 // 2. Connectivity verif
 class Monitor extends Agent;
    virtual Lc3_mon_if monIf;
+   Instruction currentTrans;
 
    reg [15:0] fetch_pc;
    reg [15:0] fetch_npc;
@@ -16,6 +17,7 @@ class Monitor extends Agent;
    function void fetch(); //{
       if( !monIf.reset ) begin //{
          fetch_npc     = fetch_pc + 16'b1;
+         currentTrans  = getInstIndex(fetch_pc - `BASE_ADDR);
          check("FETCH", WARN, fetch_pc  == monIf.FETCH.pc, $psprintf("PC not matched (%0x != %0x)", fetch_pc, monIf.FETCH.pc) );
          check("FETCH", WARN, fetch_npc == monIf.FETCH.npc, $psprintf("NPC not matched (%0x != %0x)", fetch_npc, monIf.FETCH.npc) );
          check("FETCH", WARN, monIf.CTRLR.enable_fetch == monIf.FETCH.instrmem_rd,
@@ -42,18 +44,18 @@ class Monitor extends Agent;
             Instruction::op2str(monIf.DECODE.IR[15:12])) );
 
          case(decode_ir[15:12])
-            Instruction::ADD: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'b0, 2'bxx, 1'bx, !monIf.DECODE.IR[5]}; end
-            Instruction::AND: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'b1, 2'bxx, 1'bx, !monIf.DECODE.IR[5]}; end
-            Instruction::NOT: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'd2, 2'bxx, 1'bx, 1'bx}; end
-            Instruction::BR : begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            Instruction::JMP: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'd3, 1'b0, 1'bx}; end
-            Instruction::LD : begin decode_Mctrl = 0;    decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            Instruction::LDR: begin decode_Mctrl = 0;    decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
-            Instruction::LDI: begin decode_Mctrl = 1;    decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            Instruction::LEA: begin decode_Mctrl = 1'bx; decode_Wctrl = 2; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            Instruction::ST : begin decode_Mctrl = 0;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            Instruction::STR: begin decode_Mctrl = 0;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
-            Instruction::STI: begin decode_Mctrl = 1;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            ADD: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'b0, 2'bxx, 1'bx, !monIf.DECODE.IR[5]}; end
+            AND: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'b1, 2'bxx, 1'bx, !monIf.DECODE.IR[5]}; end
+            NOT: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'd2, 2'bxx, 1'bx, 1'bx}; end
+            BR : begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            JMP: begin decode_Mctrl = 1'bx; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'd3, 1'b0, 1'bx}; end
+            LD : begin decode_Mctrl = 0;    decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            LDR: begin decode_Mctrl = 0;    decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
+            LDI: begin decode_Mctrl = 1;    decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            LEA: begin decode_Mctrl = 1'bx; decode_Wctrl = 2; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            ST : begin decode_Mctrl = 0;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            STR: begin decode_Mctrl = 0;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
+            STI: begin decode_Mctrl = 1;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
          endcase
 
          check("DECODE", WARN, decode_Ectrl == monIf.DECODE.E_Control, $psprintf("[%s] E_control unmatched! (%0x != %0x)", 
@@ -73,7 +75,8 @@ class Monitor extends Agent;
 
    function new(virtual Lc3_mon_if monIf);
       super.new();
-      this.monIf   = monIf;
+      this.monIf        = monIf;
+      this.currentTrans = new;
    endfunction
 
    task run();

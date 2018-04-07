@@ -9,9 +9,13 @@ class Env;
    Driver      driver;
    Monitor     monitor;
 
+   // Coverage
+   Coverage    cov;
+
    function new(virtual Lc3_dr_if  driverIf, virtual Lc3_mon_if monIf);
       driver   = new( driverIf );
       monitor  = new( monIf );
+      cov      = new( monIf );
    endfunction
 
    task run();

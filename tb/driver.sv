@@ -22,7 +22,6 @@ class Driver extends Agent;
             stallCnt                 = 0;
             dynInstCount            += 1;
             instMemIndex             = driverIf.pc - `BASE_ADDR;
-            $display("memIndex: %d\n", instMemIndex);
             if( instMemIndex >= getInstMemSize() || dynInstCount >= `DYN_INST_CNT )
                break;
    
