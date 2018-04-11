@@ -67,6 +67,29 @@ class Instruction; //{
       return "UNDEF";
    endfunction
 
+   function bit isCtrl();
+      bit cond       = 0;
+      case( opcode )
+         BR : cond   = 1; 
+         JMP: cond   = 1; 
+      endcase
+      return cond;
+   endfunction
+
+   function bit isMem();
+      bit cond       = 0;
+      case( opcode )
+         LD : cond   = 1; 
+         LDR: cond   = 1; 
+         LDI: cond   = 1; 
+         LEA: cond   = 1; 
+         ST : cond   = 1; 
+         STR: cond   = 1; 
+         STI: cond   = 1; 
+      endcase
+      return cond;
+   endfunction
+
    function string opcode2str();
       return op2str( opcode );
    endfunction

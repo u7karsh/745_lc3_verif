@@ -18,9 +18,9 @@ class Monitor extends Agent;
       if( !monIf.reset ) begin //{
          fetch_npc     = fetch_pc + 16'b1;
          currentTrans  = getInstIndex(fetch_pc - `BASE_ADDR);
-         check("FETCH", WARN, fetch_pc  == monIf.FETCH.pc, $psprintf("PC not matched (%0x != %0x)", fetch_pc, monIf.FETCH.pc) );
-         check("FETCH", WARN, fetch_npc == monIf.FETCH.npc, $psprintf("NPC not matched (%0x != %0x)", fetch_npc, monIf.FETCH.npc) );
-         check("FETCH", WARN, monIf.CTRLR.enable_fetch == monIf.FETCH.instrmem_rd,
+         check("FETCH", WARN, fetch_pc  === monIf.FETCH.pc, $psprintf("PC not matched (%0x != %0x)", fetch_pc, monIf.FETCH.pc) );
+         check("FETCH", WARN, fetch_npc === monIf.FETCH.npc, $psprintf("NPC not matched (%0x != %0x)", fetch_npc, monIf.FETCH.npc) );
+         check("FETCH", WARN, monIf.CTRLR.enable_fetch === monIf.FETCH.instrmem_rd,
             $psprintf("instrmem_rd not matched (%0x != %0x)", monIf.CTRLR.enable_fetch, monIf.FETCH.instrmem_rd) );
 
          $display("%t [MON.fetch] pc: %0x, npc: %0x, instrmem_rd: %b", 
@@ -38,7 +38,7 @@ class Monitor extends Agent;
    //------------------------DECODE---------------
    function void decode(); //{
       if( !monIf.reset ) begin //{
-         check("DECODE", WARN, decode_ir == monIf.DECODE.IR, 
+         check("DECODE", WARN, decode_ir === monIf.DECODE.IR, 
             $psprintf("Unmatched IR (%0x != %0x, Opcode: %s != %s)", decode_ir, monIf.DECODE.IR, 
             Instruction::op2str(decode_ir[15:12]), 
             Instruction::op2str(monIf.DECODE.IR[15:12])) );
@@ -58,13 +58,13 @@ class Monitor extends Agent;
             STI: begin decode_Mctrl = 1;    decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
          endcase
 
-         check("DECODE", WARN, decode_Ectrl == monIf.DECODE.E_Control, $psprintf("[%s] E_control unmatched! (%0x != %0x)", 
+         check("DECODE", WARN, decode_Ectrl === monIf.DECODE.E_Control, $psprintf("[%s] E_control unmatched! (%0x != %0x)", 
             Instruction::op2str(decode_ir[15:12]), decode_Ectrl, monIf.DECODE.E_Control));
-         check("DECODE", WARN, decode_Wctrl == monIf.DECODE.W_Control, $psprintf("[%s] W_control unmatched! (%0x != %0x)", 
+         check("DECODE", WARN, decode_Wctrl === monIf.DECODE.W_Control, $psprintf("[%s] W_control unmatched! (%0x != %0x)", 
             Instruction::op2str(decode_ir[15:12]), decode_Wctrl, monIf.DECODE.W_Control));
-         check("DECODE", WARN, decode_Mctrl == monIf.DECODE.Mem_Control, $psprintf("[%s] Mem_control unmatched! (%0x != %0x)", 
+         check("DECODE", WARN, decode_Mctrl === monIf.DECODE.Mem_Control, $psprintf("[%s] Mem_control unmatched! (%0x != %0x)", 
             Instruction::op2str(decode_ir[15:12]), decode_Mctrl, monIf.DECODE.Mem_Control));
-         check("DECODE", WARN, decode_npcout == monIf.DECODE.npc_out, $psprintf("npc_out unmatched! (%0x != %0x)", decode_npcout, monIf.DECODE.npc_out) );
+         check("DECODE", WARN, decode_npcout === monIf.DECODE.npc_out, $psprintf("npc_out unmatched! (%0x != %0x)", decode_npcout, monIf.DECODE.npc_out) );
 
          decode_ir     = monIf.CTRLR.enable_decode ? monIf.CTRLR.Instr_dout : decode_ir;
          decode_npcout = monIf.CTRLR.enable_decode ? monIf.FETCH.npc : decode_npcout;

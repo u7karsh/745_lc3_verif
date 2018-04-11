@@ -6,6 +6,12 @@ class Test; //{
    integer            instCnt = 0;
    string             name;
 
+   // The following variables are used to check > 1 control/memory
+   // instructions in the pipeline
+   // This is due to the limitation of lc3 DUT
+   integer            ctrlCounter;
+   integer            memCounter;
+
    // Populates env's instruct mem
    // This is the base function that will be overridden in
    // all tests. It doesn't have LD/SD and BR as mem warmup
@@ -19,16 +25,41 @@ class Test; //{
             pushInst(instMemEntry);
          end else begin
             $fatal(1, "Failed to randomize instMemEntry");
+            eos(0);
          end
       end
    endfunction
 
    function void pushInst( Instruction inst );
       if( instCnt < env.instMem.size() ) begin
+         ctrlCounter          += 1;
+         memCounter           += 1;
+
+         // Control inst in pipeline check
+         if( inst.isCtrl() ) begin
+            if( ctrlCounter < `LC3_PIPE_DEPTH )
+               $fatal(1, "More than 1 control instruction in pipeline");
+               eos(0);
+            ctrlCounter        = 0;
+         end
+
+         // Memory inst in pipeline check
+         if( inst.isMem() ) begin
+            if( memCounter < `LC3_PIPE_DEPTH )
+               $fatal(1, "More than 1 memory instruction in pipeline");
+               eos(0);
+            memCounter         = 0;
+         end
+
+         // Saturate it
+         ctrlCounter           = (ctrlCounter > `LC3_PIPE_DEPTH) ? `LC3_PIPE_DEPTH : ctrlCounter;
+         memCounter            = (memCounter > `LC3_PIPE_DEPTH) ? `LC3_PIPE_DEPTH : memCounter;
+
          env.instMem[instCnt]  = inst.copy();
          instCnt              += 1;
       end else begin
          $fatal(1, "instMem overflown: size: %0d (instCnt: %0x)", env.instMem.size(), instCnt);
+         eos(0);
       end
    endfunction
 
@@ -39,27 +70,31 @@ class Test; //{
    endfunction
 
    function new( virtual Lc3_dr_if driverIf, virtual Lc3_mon_if monIf, integer dataMemSize, string className="Test" );
-      this.name     = className;
-      this.driverIf = driverIf;
-      this.monIf    = monIf;
+      this.name        = className;
+      this.driverIf    = driverIf;
+      this.monIf       = monIf;
+      this.ctrlCounter = 0;
 
       // Create and Connect environment
-      env           = new(driverIf, monIf);
+      env              = new(driverIf, monIf);
 
       // Create and clear the data mem before program start
       createDataMem(dataMemSize, 0);
    endfunction
 
    // End of simulation function
-   function void eos();
+   function void eos( bit passReport=1 );
       $display("----------- END OF TEST -------------");
-      $display("----------- BEGIN REPORT ------------");
-      $display("Stats [Driver ]: %0d / %0d Evaluations Failed", env.driver.fail_assert, env.driver.num_assert);
-      $display("Stats [Monotor]: %0d / %0d Evaluations Failed", env.monitor.fail_assert, env.monitor.num_assert);
-      if( (env.driver.fail_assert + env.monitor.fail_assert) == 0 )
-         $display("ALL TEST CASES PASSED!!!!!");
+      if( passReport ) begin
+         $display("----------- BEGIN REPORT ------------");
+         $display("Stats [Driver ]: %0d / %0d Evaluations Failed", env.driver.fail_assert, env.driver.num_assert);
+         $display("Stats [Monotor]: %0d / %0d Evaluations Failed", env.monitor.fail_assert, env.monitor.num_assert);
+      end
+
+      if( passReport && ((env.driver.fail_assert + env.monitor.fail_assert) == 0) )
+         $display("--PASSED--");
       else
-         $display("YO DAWG! YOU GOT SOME FAILED TEST CASES. SORRY BRUH!");
+         $display("--FAILED--");
    
       $display("------------ END REPORT -------------\n");
    endfunction

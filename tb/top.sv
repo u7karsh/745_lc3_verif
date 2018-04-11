@@ -1,8 +1,9 @@
 `define DEBUG
-`define STALL_THRESH 1000
-`define BASE_ADDR    16'h3000
-`define DYN_INST_CNT 1000000
-//`define TOP_MONITOR
+`define STALL_THRESH   1000
+`define BASE_ADDR      16'h3000
+`define DYN_INST_CNT   1000000
+`define LC3_PIPE_DEPTH 5
+`define TOP_MONITOR
 
 `include "types.sv"
 `include "interface.sv"
@@ -21,6 +22,7 @@ module top();
 `TEST test;
 
 reg clk = 0;
+
 wire Data_rd;
 wire [15:0] Data_addr;
 wire [15:0] Data_din;
@@ -86,6 +88,25 @@ assign monif.CTRLR.Instr_dout       = dut.Ctrl.Instr_dout;
 Lc3_dr_if lc3if( clk );
 Lc3_mon_if monif( clk );
 
+/*Lc3_mon_if monif(clk, lc3if.reset, 
+                     // Fetch
+                     dut.Fetch.pc, dut.Fetch.npc, dut.Fetch.instrmem_rd,
+                     // Decode
+                     dut.Dec.IR, dut.Dec.E_Control, dut.Dec.W_Control, dut.Dec.Mem_Control, dut.Dec.npc_out,
+                     // EX
+                     dut.Ex.aluout, dut.Ex.W_Control_out, dut.Ex.Mem_Control_out, dut.Ex.M_Data, 
+                     dut.Ex.dr, dut.Ex.sr1, dut.Ex.sr2, dut.Ex.NZP, dut.Ex.IR_Exec, dut.Ex.pcout,
+                     // WB
+                     dut.WB.psr, dut.WB.d1, dut.WB.d2,
+                     // MEM
+                     dut.MemAccess.Data_addr, dut.MemAccess.Data_rd, dut.MemAccess.Data_din, dut.MemAccess.memout,
+                     // CTRL
+                     dut.Ctrl.enable_updatePC, dut.Ctrl.enable_fetch, dut.Ctrl.enable_decode, 
+                     dut.Ctrl.enable_execute, dut.Ctrl.enable_writeback, dut.Ctrl.br_taken,
+                     dut.Ctrl.bypass_alu_1, dut.Ctrl.bypass_alu_2, dut.Ctrl.bypass_mem_1, dut.Ctrl.bypass_mem_2,
+                     dut.Ctrl.mem_state, dut.Ctrl.Instr_dout
+                  );
+*/
 // Test
 initial begin
    `ifdef TOP_MONITOR

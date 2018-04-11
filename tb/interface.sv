@@ -1,4 +1,5 @@
-interface Lc3_dr_if( input bit clk );
+//interface Lc3_dr_if(clk, reset); 
+interface Lc3_dr_if(input bit clk);
    logic        reset;
    logic        complete_instr, complete_data;
    logic [15:0] pc, Data_addr;
@@ -7,6 +8,13 @@ interface Lc3_dr_if( input bit clk );
    logic [15:0] Data_din;
 endinterface
 
+//interface Lc3_mon_if(clk, reset, 
+//                     pc, npc, instrmem_rd,
+//                     IR, E_Control, W_Control, Mem_Control, npc_out,
+//                     aluout, W_Control_out, Mem_Control_out, M_Data, dr, sr1, sr2, NZP, IR_Exec, pcout,
+//                     psr, VSR1, VSR2,
+//                     Data_addr, Data_rd, Data_din, memout,
+//                     enable_updatePC, enable_fetch, enable_decode, enable_execute, enable_writeback, br_taken, bypass_alu_1, bypass_alu_2, bypass_mem_1, bypass_mem_2, mem_state, Instr_dout);
 interface Lc3_mon_if(input bit clk);
    //fetch
    logic        reset;
