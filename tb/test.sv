@@ -37,17 +37,19 @@ class Test; //{
 
          // Control inst in pipeline check
          if( inst.isCtrl() ) begin
-            if( ctrlCounter < `LC3_PIPE_DEPTH )
+            if( ctrlCounter < `LC3_PIPE_DEPTH ) begin
                $fatal(1, "More than 1 control instruction in pipeline");
                eos(0);
+            end
             ctrlCounter        = 0;
          end
 
          // Memory inst in pipeline check
          if( inst.isMem() ) begin
-            if( memCounter < `LC3_PIPE_DEPTH )
+            if( memCounter < `LC3_PIPE_DEPTH ) begin
                $fatal(1, "More than 1 memory instruction in pipeline");
                eos(0);
+            end
             memCounter         = 0;
          end
 
@@ -85,10 +87,10 @@ class Test; //{
    // End of simulation function
    function void eos( bit passReport=1 );
       $display("----------- END OF TEST -------------");
+      $display("----------- BEGIN REPORT ------------");
       if( passReport ) begin
-         $display("----------- BEGIN REPORT ------------");
          $display("Stats [Driver ]: %0d / %0d Evaluations Failed", env.driver.fail_assert, env.driver.num_assert);
-         $display("Stats [Monotor]: %0d / %0d Evaluations Failed", env.monitor.fail_assert, env.monitor.num_assert);
+         $display("Stats [Monitor]: %0d / %0d Evaluations Failed", env.monitor.fail_assert, env.monitor.num_assert);
       end
 
       if( passReport && ((env.driver.fail_assert + env.monitor.fail_assert) == 0) )
@@ -97,6 +99,7 @@ class Test; //{
          $display("--FAILED--");
    
       $display("------------ END REPORT -------------\n");
+      $finish;
    endfunction
 
    task run();

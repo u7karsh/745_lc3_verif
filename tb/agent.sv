@@ -37,8 +37,8 @@ class Agent;
       if(!cond) begin
          fail_assert    += 1;
          if( severity == FATAL ) begin
-            void'(top.test.eos());
             $fatal(1, "%t [CHECKER.%s] %s", $time, stage, A);
+            void'(top.test.eos());
          end
          else
             $warning("%t [CHECKER.%s] %s", $time, stage, A);

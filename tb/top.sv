@@ -57,7 +57,6 @@ initial begin
    `endif
    test = new( lc3if, monif, 65536 );
    test.run();
-   $finish;
 end
 
 //--------------------------------------- DUT -----------------------------
