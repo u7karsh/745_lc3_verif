@@ -4,7 +4,7 @@ vlog -sv dut/*
 
 run_test(){
    vlog -sv +define+TEST=$1 tb/top.sv
-   vsim -c -do "onfinish stop; run -all; fcover report -cvg; quit" top -suppress 8637 | tee ${1}.log
+   vsim -c -do "onfinish stop; run -all; fcover report -cvg; quit" top | tee ${1}.log
 }
 
 ## All tests
