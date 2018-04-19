@@ -17,10 +17,14 @@ class Test; //{
    // all tests. It doesn't have LD/SD and BR as mem warmup
    // is not done
    virtual function void sequenceInstr();
-      integer numTrans             = 10;
+      integer numTrans             = 8 + 10;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
-      for( int i = 0; i < numTrans; i++ ) begin
+      for( int i = 0; i < 8; i++ ) begin
+         instMemEntry.create(AND, 7-i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+         pushInst(instMemEntry);
+      end
+      for( int i = 0; i < numTrans - 8; i++ ) begin
          if( instMemEntry.randomize() with { opcode inside {ADD, /*BR,*/ AND, NOT/*, LD, LDR, LDI, LEA, ST, STI, STR*/}; } ) begin
             pushInst(instMemEntry);
          end else begin
@@ -28,6 +32,11 @@ class Test; //{
             eos(0);
          end
       end
+   endfunction
+
+   function void displayInstr();
+      for( int i = 0; i < instCnt; i++ )
+         top.test.env.instMem[i].print();
    endfunction
 
    function void pushInst( Instruction inst );
@@ -105,6 +114,7 @@ class Test; //{
    task run();
       // Sequence instructions
       sequenceInstr();
+      //displayInstr();
 
       $display("--------------- Running Test: %s -------------", name);
       env.run();

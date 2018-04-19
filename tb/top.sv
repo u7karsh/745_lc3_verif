@@ -3,7 +3,7 @@
 `define BASE_ADDR      16'h3000
 `define DYN_INST_CNT   1000000
 `define LC3_PIPE_DEPTH 5
-`define TOP_MONITOR
+//`define TOP_MONITOR
 
 `include "types.sv"
 `include "interface.sv"
@@ -42,7 +42,8 @@ Lc3_mon_if monif( clk, lc3if.reset,
                      // WB
                      dut.WB.psr, dut.WB.d1, dut.WB.d2,
                      // MEM
-                     dut.MemAccess.Data_addr, dut.MemAccess.Data_din, dut.MemAccess.memout, dut.MemAccess.Data_rd,
+                     dut.MemAccess.Data_addr, dut.MemAccess.Data_din, dut.MemAccess.memout, dut.MemAccess.Data_dout, 
+                     dut.MemAccess.Data_rd,
                      // CTRL
                      dut.Ctrl.enable_updatePC, dut.Ctrl.enable_fetch, dut.Ctrl.enable_decode, 
                      dut.Ctrl.enable_execute, dut.Ctrl.enable_writeback, dut.Ctrl.br_taken,
