@@ -78,19 +78,20 @@ class Monitor extends Agent;
    //------------------------DECODE---------------
    function void decode(); //{
       if( !monIf.reset && ctrlrIf.enable_decode ) begin //{
+         bit sliceEctrl = 0;
          case(decode_ir[15:12])
-            ADD: begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'b0, 2'b0, 1'b0, !decode_ir[5]}; end
-            AND: begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'b1, 2'b0, 1'b0, !decode_ir[5]}; end
-            NOT: begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'd2, 2'b0, 1'b0, 1'b1}; end
-            BR : begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            JMP: begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'd3, 1'b0, 1'bx}; end
-            LD : begin decode_Mctrl = 0; decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            LDR: begin decode_Mctrl = 0; decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
-            LDI: begin decode_Mctrl = 1; decode_Wctrl = 1; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            LEA: begin decode_Mctrl = 0; decode_Wctrl = 2; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            ST : begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
-            STR: begin decode_Mctrl = 0; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
-            STI: begin decode_Mctrl = 1; decode_Wctrl = 0; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            ADD: begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 0 ; decode_Ectrl = {2'b0, 2'b0, 1'b0, !decode_ir[5]}; end
+            AND: begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 0 ; decode_Ectrl = {2'b1, 2'b0, 1'b0, !decode_ir[5]}; end
+            NOT: begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 0 ; decode_Ectrl = {2'd2, 2'b0, 1'b0, 1'b1}; end
+            BR : begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            JMP: begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'd3, 1'b0, 1'bx}; end
+            LD : begin decode_Mctrl = 0; decode_Wctrl = 1; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            LDR: begin decode_Mctrl = 0; decode_Wctrl = 1; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
+            LDI: begin decode_Mctrl = 1; decode_Wctrl = 1; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            LEA: begin decode_Mctrl = 0; decode_Wctrl = 2; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            ST : begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
+            STR: begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'd2, 1'b0, 1'bx}; end
+            STI: begin decode_Mctrl = 1; decode_Wctrl = 0; sliceEctrl = 1 ; decode_Ectrl = {2'bxx, 2'b1, 1'b1, 1'bx}; end
          endcase
 
          check("DECODE", WARN, decode_ir === decodeIf.IR, 
@@ -101,9 +102,14 @@ class Monitor extends Agent;
             decode_Ectrl = 0;
          end
 
-         //Hazard prone
-         check("DECODE", WARN, decode_Ectrl == decodeIf.E_Control, $psprintf("[%s] E_control unmatched! (%0b != %0x)", 
-                  Instruction::op2str(decode_ir[15:12]), decode_Ectrl, decodeIf.E_Control));
+         if( sliceEctrl ) begin
+            check("DECODE", WARN, decode_Ectrl[3:1] === decodeIf.E_Control[3:1], $psprintf("[%s] E_control unmatched! (%0b != %0x)", 
+                     Instruction::op2str(decode_ir[15:12]), decode_Ectrl[3:1], decodeIf.E_Control[3:1]));
+         end else begin
+            check("DECODE", WARN, decode_Ectrl === decodeIf.E_Control, $psprintf("[%s] E_control unmatched! (%0b != %0x)", 
+                     Instruction::op2str(decode_ir[15:12]), decode_Ectrl, decodeIf.E_Control));
+         end
+
          check("DECODE", WARN, decode_Wctrl === decodeIf.W_Control, $psprintf("[%s] W_control unmatched! (%0x != %0x)", 
             Instruction::op2str(decode_ir[15:12]), decode_Wctrl, decodeIf.W_Control));
          check("DECODE", WARN, decode_Mctrl === decodeIf.Mem_Control, $psprintf("[%s] Mem_control unmatched! (%0x != %0x)", 
