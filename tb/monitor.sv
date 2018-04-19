@@ -35,6 +35,8 @@ class Monitor extends Agent;
    reg [5:0]  exec_Ectrl;
    reg [15:0] exec_IR;
    reg [15:0] exec_npc;
+   reg [1:0]  exec_bypass1;
+   reg [1:0]  exec_bypass2;
 
    /*
     * Mem globals
@@ -133,13 +135,13 @@ class Monitor extends Agent;
       if( !monIf.reset && ctrlrIf.enable_execute ) begin //{
          //reconfiguring offsets in execute
          //for PC OUT
-         case({ctrlrIf.bypass_alu_1, ctrlrIf.bypass_mem_1})
+         case(exec_bypass1)
             2'b00: val_1 = wbIf.VSR1;
             2'b01: val_1 = memIf.memout;
             2'b10: val_1 = execIf.aluout;
          endcase
 
-         case({ctrlrIf.bypass_alu_2, ctrlrIf.bypass_mem_2})
+         case(exec_bypass2)
             2'b00: val_2 = exec_Ectrl[0] ? wbIf.VSR2 : {{11{exec_IR[4]}}, exec_IR[4:0]};
             2'b01: val_2 = memIf.memout;
             2'b10: val_2 = execIf.aluout;
@@ -160,7 +162,7 @@ class Monitor extends Agent;
             default: begin check("EXECUTE", FATAL, 1, "Control not supported"); end
          endcase
 
-         $display("%0b %0b %0b %0x %0x %0x %0x", {ctrlrIf.bypass_alu_1, ctrlrIf.bypass_mem_1},{ctrlrIf.bypass_alu_2, ctrlrIf.bypass_mem_2}, exec_Ectrl[5:4], val_1, val_2, wbIf.VSR1, wbIf.VSR2);
+         $display("%0x %0b %0b %0b %0x %0x %0x %0x %0x", exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, wbIf.VSR1, wbIf.VSR2, exec_IR[4:0]);
          //TODO: SR1 and SR2
          //TODO: Why don't care for mem data?
          // For ALU, short alout with pcout (not documented)
@@ -210,10 +212,13 @@ class Monitor extends Agent;
          //check("EXECUTE", WARN, exe_M_data === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x)", 
          //   Instruction::op2str(execIf.IR_Exec[15:12]), exe_M_data, execIf.M_Data));
 
-         exec_Ectrl  = decodeIf.E_Control;
-         exec_IR     = decodeIf.IR;
-         exec_npc    = decodeIf.npc_out;
+         exec_Ectrl   = decodeIf.E_Control;
+         exec_IR      = decodeIf.IR;
+         exec_npc     = decodeIf.npc_out;
       end //}
+
+      exec_bypass1    = {ctrlrIf.bypass_alu_1, ctrlrIf.bypass_mem_1};
+      exec_bypass2    = {ctrlrIf.bypass_alu_2, ctrlrIf.bypass_mem_2};
 
       if( monIf.reset ) begin
          exec_Ectrl  = 0;

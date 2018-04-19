@@ -5,7 +5,8 @@ COV_DIR=coverage
 UCDB=""
 MERGED_UCDB=$COV_DIR/merged.ucdb
 MINI_REPORT=$LOG_DIR/mini_report.log
-ECHO_VSIM=0
+ECHO_VSIM=1
+CLI=-c
 
 vlog -sv dut/*
 
@@ -21,9 +22,10 @@ run_test(){
    LOG=$LOG_DIR/${1}.log
    vlog -sv +define+TEST=$1 tb/top.sv
    if [ $ECHO_VSIM = 1 ]; then
-      vsim -c -do "coverage save -onexit $COV_DIR/${1}.ucdb; onfinish stop; run -all; fcover report -cvg; quit" top |& tee  $LOG
+      vsim $CLI -do "run -all;" top |& tee  $LOG
+      #vsim $CLI -do "coverage save -onexit $COV_DIR/${1}.ucdb; onfinish stop; run -all; fcover report -cvg; quit" top |& tee  $LOG
    else
-      vsim -c -do "coverage save -onexit $COV_DIR/${1}.ucdb; onfinish stop; run -all; fcover report -cvg; quit" top &> $LOG
+      vsim $CLI -do "coverage save -onexit $COV_DIR/${1}.ucdb; onfinish stop; run -all; fcover report -cvg; quit" top &> $LOG
    fi
    START=$(get_line_number "BEGIN REPORT" $LOG)
    END=$(get_line_number "END REPORT" $LOG)
@@ -46,5 +48,5 @@ rm -rf $MINI_REPORT
 run_test BaseStoreLoadTest
 run_test Test 
 
-do_coverage
+#do_coverage
 cat $MINI_REPORT
