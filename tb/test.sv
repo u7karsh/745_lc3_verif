@@ -17,7 +17,7 @@ class Test; //{
    // all tests. It doesn't have LD/SD and BR as mem warmup
    // is not done
    virtual function void sequenceInstr();
-      integer numTrans             = 8 + 15;
+      integer numTrans             = 8 + 25;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
       for( int i = 0; i < 8; i++ ) begin
@@ -110,6 +110,7 @@ class Test; //{
             end
             while( env.driver.num_assert.next(stage) );
          end
+         $display("---------------");
          $display("      [TOTAL\t]\t%0d / %0d Evaluations Failed", dri_fail_assert, dri_num_assert);
 
          $display("\nStats [Monitor]: ");
@@ -121,6 +122,7 @@ class Test; //{
             end
             while( env.monitor.num_assert.next(stage) );
          end 
+         $display("---------------");
          $display("      [TOTAL\t]\t%0d / %0d Evaluations Failed", mon_fail_assert, mon_num_assert);
       end
 
