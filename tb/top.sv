@@ -3,10 +3,7 @@
 `define BASE_ADDR      16'h3000
 `define DYN_INST_CNT   1000000
 `define LC3_PIPE_DEPTH 5
-<<<<<<< HEAD
-=======
 `define DEBUG_EXEC
->>>>>>> 59c24cd456e4d9e3485de8d21e299f56ee8e31b8
 //`define TOP_MONITOR
 
 `include "types.sv"
