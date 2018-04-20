@@ -62,7 +62,7 @@ class Monitor extends Agent;
    logic        wb_init;
 
    //Register File   
-   logic [15:0]RegFile[0:7];
+   logic [15:0] regFile[0:7];
 
    reg [15:0] execute_ir, exec_E_Control, decode_npcout;
 
@@ -209,7 +209,7 @@ class Monitor extends Agent;
          end
 
          `ifdef DEBUG_EXEC
-            $display("%t IR: 0x%0x bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, execIf.pcout, execIf.M_Data);
+            $display("%t EXEC: IR: 0x%0x bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, execIf.pcout, execIf.M_Data);
          `endif
 
          check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x)", 
@@ -257,12 +257,10 @@ class Monitor extends Agent;
       end
    endfunction //}
 
-     function void memAccess();
+   function void memAccess();
       reg        mem_Dmem_rd;  
       reg [15:0] mem_Dmem_din; 
       reg [15:0] mem_Dmem_addr;
-      //TODO: reflects Dout asynchronously?
-      reg [15:0] mem_memout;
 
       mem_memState = ctrlrIf.mem_state;
       mem_Mctrl    = execIf.Mem_Control_out;
@@ -292,124 +290,99 @@ class Monitor extends Agent;
                mem_Dmem_din    = 16'hz;
                mem_Dmem_addr   = 16'hz;
             end //}
-      endcase
+         endcase
 
-      check("MEM", WARN, mem_Dmem_rd === memIf.Data_rd, $psprintf("[%s] mem read unmatched! (%0x != %0x)", 
-         Instruction::op2str(exec_IR[15:12]), mem_Dmem_rd, memIf.Data_rd));
+         check("MEM", WARN, mem_Dmem_rd === memIf.Data_rd, $psprintf("[%s] mem read unmatched! (%0x != %0x)", 
+            Instruction::op2str(exec_IR[15:12]), mem_Dmem_rd, memIf.Data_rd));
 
-      check("MEM", WARN, mem_Dmem_din === memIf.Data_din, $psprintf("[%s] mem din unmatched! (%0x != %0x)", 
-         Instruction::op2str(exec_IR[15:12]), mem_Dmem_din, memIf.Data_din));
+         check("MEM", WARN, mem_Dmem_din === memIf.Data_din, $psprintf("[%s] mem din unmatched! (%0x != %0x)", 
+            Instruction::op2str(exec_IR[15:12]), mem_Dmem_din, memIf.Data_din));
 
-      check("MEM", WARN, mem_Dmem_addr === memIf.Data_addr, $psprintf("[%s] mem addr unmatched! (%0x != %0x)", 
-         Instruction::op2str(exec_IR[15:12]), mem_Dmem_addr, memIf.Data_addr));
+         check("MEM", WARN, mem_Dmem_addr === memIf.Data_addr, $psprintf("[%s] mem addr unmatched! (%0x != %0x)", 
+            Instruction::op2str(exec_IR[15:12]), mem_Dmem_addr, memIf.Data_addr));
+      end //}
+      else begin //{
+         mem_Mctrl    = 0;  
+         mem_mAddr    = 0; 
+         mem_Dout     = 0; 
+         mem_mData    = 0; 
+      end//}
+   endfunction
 
-      //check("MEM_ACCESS", WARN, mem_memout === memIf.memout, $psprintf("[%s] memout unmatched! (%0x != %0x)", 
-      //   Instruction::op2str(exec_IR[15:12]), mem_memout, memIf.memout));
-
-      
-   end //}
-
-   else begin //{
-      mem_Mctrl    = 0;  
-      mem_mAddr    = 0; 
-      mem_Dout     = 0; 
-      mem_mData    = 0; 
-      //mem_memState = 0; 
-   end//}
-endfunction
-
-function void writeback();
-
-
+   function void writeback();
       reg [2:0]  wb_psr;
       reg [15:0] wb_VSR1, wb_VSR2;
 
       wb_W_Control = execIf.W_Control_out;
 
-    if(!monIf.reset && ctrlrIf.enable_writeback) begin//{
-      
+      if(!monIf.reset && ctrlrIf.enable_writeback) begin//{
+         case(wb_W_Control)
+            2'b00: begin //{
+               regFile[wb_dr_in] = wb_aluout; 
+               casex({wb_aluout[15],|wb_aluout})
+                  2'b1x:   begin wb_psr  = 3'b100; end
+                  2'b01:   begin wb_psr  = 3'b001; end
+                  2'b00:   begin wb_psr  = 3'b010; end
+                  default: begin check("WB", FATAL, 1, "impossible aluout value"); end
+               endcase
+            end //}
 
-      case(wb_W_Control)
-         2'b00: begin //{
-            RegFile[wb_dr_in] = wb_aluout; 
-            casex({wb_aluout[15],|wb_aluout})
-               2'b1x:   begin wb_psr  = 3'b100; end
-               2'b01:   begin wb_psr  = 3'b001; end
-               2'b00:   begin wb_psr  = 3'b010; end
-               default: begin check("WB", FATAL, 1, "impossible aluout value"); end
-            endcase
-         end //}
-         2'b01: begin //{ 
-         RegFile[wb_dr_in] = wb_memout;
-         casex({wb_memout[15],|wb_memout})
-               2'b1x:   begin wb_psr  = 3'b100; end
-               2'b01:   begin wb_psr  = 3'b001; end
-               2'b00:   begin wb_psr  = 3'b010; end
-               default: begin check("WB", FATAL, 1, "impossible memout value"); end
-            endcase
-         end//}
-         2'b10: begin //{
-         RegFile[wb_dr_in] = wb_pcout; 
-         casex({wb_pcout[15],|wb_pcout})
-               2'b1x:   begin wb_psr  = 3'b100; end
-               2'b01:   begin wb_psr  = 3'b001; end
-               2'b00:   begin wb_psr  = 3'b010; end
-               default: begin check("WB", FATAL, 1, "impossible pcout value"); end
-            endcase
-         end//}
-         2'b11: begin check("WB", FATAL, 1, "W control 11 not required"); end
-      endcase
-      $display("PSR %0b ALUOUT %0b PCOUT %0b MEMOUT %0b W_CTRL %0b EXALU %0b EXPCOUT %0b EXMEM %0b", wb_psr, wb_aluout, wb_pcout, wb_memout, execIf.aluout, execIf.pcout, memIf.memout, wb_W_Control);
+            2'b01: begin //{ 
+               regFile[wb_dr_in] = wb_memout;
+               casex({wb_memout[15],|wb_memout})
+                  2'b1x:   begin wb_psr  = 3'b100; end
+                  2'b01:   begin wb_psr  = 3'b001; end
+                  2'b00:   begin wb_psr  = 3'b010; end
+                  default: begin check("WB", FATAL, 1, "impossible memout value"); end
+               endcase
+            end//}
+
+            2'b10: begin //{
+               regFile[wb_dr_in] = wb_pcout; 
+               casex({wb_pcout[15],|wb_pcout})
+                  2'b1x:   begin wb_psr  = 3'b100; end
+                  2'b01:   begin wb_psr  = 3'b001; end
+                  2'b00:   begin wb_psr  = 3'b010; end
+                  default: begin check("WB", FATAL, 1, "impossible pcout value"); end
+               endcase
+            end//}
+
+            2'b11: begin check("WB", FATAL, 1, "W control 11 not required"); end
+         endcase
+         `ifdef DEBUG_MEM
+            $display("WB: PSR %0b ALUOUT %0b PCOUT %0b MEMOUT %0b W_CTRL %0b EXALU %0b EXPCOUT %0b EXMEM %0b", wb_psr, wb_aluout, wb_pcout, wb_memout, execIf.aluout, execIf.pcout, memIf.memout, wb_W_Control);
+         `endif
     	
-    	//forever
-    	//begin //{
-    	////#1;
-    	//if(monIf.reset)
-    	//	begin
-    	//		wb_VSR1=0;
-    	//		wb_VSR2=0;
-    	//	end
-    	//else
-    	//	begin	
-    	//		wb_VSR1=RegFile[wb_sr1];
-    	//		wb_VSR2=RegFile[wb_sr2];
-    	//	end
-    	//end //}
+         if( wb_init ) begin //{
+            wb_psr        = 3'b000;
+            for( int i = 0; i < 8; i++ )
+               regFile[i] = 16'bx;
+         end //}
 
-      if( wb_init ) begin //{
-         wb_psr = 3'b000;
+         wb_aluout    = execIf.aluout; 
+         wb_pcout     = execIf.pcout;
+         wb_memout    = memIf.memout;
+         wb_sr1       = execIf.sr1;
+         wb_sr2       = execIf.sr2;
+         wb_dr_in     = execIf.dr;
+         wb_W_Control = execIf.W_Control_out;
+         wb_init      = 0;
+
+         check("WB", WARN, wb_psr === wbIf.psr, $psprintf("[%s] psr unmatched! (%0b != %0b)", 
+            Instruction::op2str(exec_IR[15:12]), wb_psr, wbIf.psr));
       end //}
 
-      wb_aluout    = execIf.aluout; 
-      wb_pcout     = execIf.pcout;
-      wb_memout    = memIf.memout;
-      wb_sr1       = execIf.sr1;
-      wb_sr2       = execIf.sr2;
-      wb_dr_in     = execIf.dr;
-      wb_W_Control = execIf.W_Control_out;
-      wb_init      = 0;
-
-      //check("WRITEBACK", WARN, wb_VSR1 === wbIf.VSR1, $psprintf("[%s] VSR1 unmatched! (%0x != %0x)", 
-      //   Instruction::op2str(exec_IR[15:12]), wb_VSR1, wbIf.VSR1));
-
-      //check("WRITEBACK", WARN, wb_VSR2 === wbIf.VSR2, $psprintf("[%s] VSR2 unmatched! (%0x != %0x)", 
-      //   Instruction::op2str(exec_IR[15:12]), wb_VSR2, wbIf.VSR2));
-
-      check("WB", WARN, wb_psr === wbIf.psr, $psprintf("[%s] psr unmatched! (%0b != %0b)", 
-         Instruction::op2str(exec_IR[15:12]), wb_psr, wbIf.psr));
-    end //}
-
-    if(monIf.reset) begin //{
-      wb_aluout    = 0; 
-      wb_pcout     = 0; 
-      wb_memout    = 0; 
-      wb_sr1       = 0; 
-      wb_sr2       = 0; 
-      wb_dr_in     = 0; 
-      wb_W_Control = 0; 
-      wb_init      = 1;
-    end //}
-    endfunction
+      if(monIf.reset) begin //{
+         wb_aluout     = 0; 
+         wb_pcout      = 0; 
+         wb_memout     = 0; 
+         wb_sr1        = 0; 
+         wb_sr2        = 0; 
+         wb_dr_in      = 0; 
+         wb_W_Control  = 0; 
+         wb_init       = 1;
+      end //}
+   endfunction
 
    function new( virtual Lc3_mon_if monIf ); //{
       super.new();
@@ -426,11 +399,21 @@ function void writeback();
    task run_async();
       logic [2:0]  sr1, sr2;
       logic [2:0]  exec_sr2;
+      logic [16:0] memout;
+      logic [16:0] vsr1, vsr2;
       forever begin
+         // Sample and hold DUT signals
+         sr1    = execIf.sr1;
+         sr2    = execIf.sr2;
+         memout = memIf.memout;
+         vsr1   = wbIf.VSR1;
+         vsr2   = wbIf.VSR2;
+         // Sensitize on all DUT async signals
+         @(execIf.sr1 or execIf.sr2 or memIf.memout or wbIf.VSR1 or wbIf.VSR2);
+
          if( !monIf.reset ) begin
             //--------------------- EXEC ---------------------
-            check("AEXEC", WARN, exec_IR[8:6] === sr1, $psprintf("[%s] sr1 unmatched! (%0x != %0x)", 
-               Instruction::op2str(exec_IR[15:12]), exec_IR[8:6], sr1));
+            check("A_EXEC", WARN, exec_IR[8:6] === sr1, $psprintf("sr1 unmatched! (%0x != %0x)", exec_IR[8:6], sr1));
 
             case(exec_IR[15:12])
                ADD: begin exec_sr2 = exec_IR[02:0]; end
@@ -447,14 +430,19 @@ function void writeback();
                JMP: begin exec_sr2 =             0; end 
             endcase
 
-            check("AEXEC", WARN, exec_sr2 === sr2, $psprintf("[%s] sr2 unmatched! (%0x != %0x)", 
-               Instruction::op2str(exec_IR[15:12]), exec_sr2, sr2));
+            check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("sr2 unmatched! (%0x != %0x)", exec_sr2, sr2));
+
+            //--------------------- MEM ---------------------
+            check("A_MEM", WARN, mem_Dout === memout, $psprintf("memout unmatched! (%0x != %0x)", mem_Dout, memout));
+
+            //---------------------- WB ---------------------
+            // regFile is updated by wb sync function at the same clock. Add timestep delay to remove that hazard
+            //TODO:
+            #1;
+            check("A_WB", WARN, regFile[wb_sr1] === vsr1, $psprintf("vsr1 unmatched! (%0x != %0x)", regFile[wb_sr1], vsr1));
+            check("A_WB", WARN, regFile[wb_sr2] === vsr2, $psprintf("vsr2 unmatched! (%0x != %0x)", regFile[wb_sr2], vsr2));
          end
 
-         // Sample and hold
-         sr1   = execIf.sr1;
-         sr2   = execIf.sr2;
-         @(execIf.sr1 or execIf.sr2);
       end
    endtask
 
@@ -471,8 +459,8 @@ function void writeback();
 
    task run();
       fork
-         run_async();
          run_sync();
+         run_async();
       join
    endtask
 
