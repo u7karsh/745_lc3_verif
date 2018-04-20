@@ -69,20 +69,22 @@ class Monitor extends Agent;
    //------------------------FETCH-------------
    function void fetch(); //{
       if( !monIf.reset ) begin //{
-         fetch_npc     = fetch_pc + 16'b1;
-         currentTrans  = getInstIndex(fetch_pc - `BASE_ADDR);
+         fetch_npc        = fetch_pc + 16'b1;
+         // Access to safe get inst index
+         currentTrans     = getInstIndex(fetch_pc - `BASE_ADDR, 1);
          check("FETCH", WARN, fetch_pc  === fetchIf.pc, $psprintf("PC not matched (%0x != %0x)", fetch_pc, fetchIf.pc) );
          check("FETCH", WARN, fetch_npc === fetchIf.npc, $psprintf("NPC not matched (%0x != %0x)", fetch_npc, fetchIf.npc) );
          check("FETCH", WARN, ctrlrIf.enable_fetch === fetchIf.instrmem_rd,
             $psprintf("instrmem_rd not matched (%0x != %0x)", ctrlrIf.enable_fetch, fetchIf.instrmem_rd) );
 
-         $display("%t [MON.fetch] pc: %0x, npc: %0x, instrmem_rd: %b", 
-            $time, fetchIf.pc, fetchIf.npc, fetchIf.instrmem_rd);
-
-         // Modelling 1 FF in PC
+         `ifdef DEBUG_FETCH
+            $display("%t [MON.fetch] pc: %0x, npc: %0x, instrmem_rd: %b", 
+               $time, fetchIf.pc, fetchIf.npc, fetchIf.instrmem_rd);
+         `endif
          fetch_pc      = (ctrlrIf.enable_updatePC) ? ((ctrlrIf.br_taken) ? execIf.pcout : fetch_npc) : fetch_pc;
       end//}
-      else begin //{
+
+      if (monIf.reset)begin //{
          //reset phase
          fetch_pc      = `BASE_ADDR; 
          fetch_npc     = 0;
@@ -91,7 +93,7 @@ class Monitor extends Agent;
 
    //------------------------DECODE---------------
    function void decode(); //{
-      if( !monIf.reset && ctrlrIf.enable_decode ) begin //{
+      if( !monIf.reset ) begin //{
          bit sliceEctrl = 0;
          case(decode_ir[15:12])
             ADD: begin decode_Mctrl = 0; decode_Wctrl = 0; sliceEctrl = 0; decode_Ectrl = {2'b0, 2'b0, 1'b0, !decode_ir[5]}; end
@@ -130,9 +132,12 @@ class Monitor extends Agent;
             Instruction::op2str(decode_ir[15:12]), decode_Mctrl, decodeIf.Mem_Control));
          check("DECODE", WARN, decode_npcout === decodeIf.npc_out, $psprintf("npc_out unmatched! (%0x != %0x)", decode_npcout, decodeIf.npc_out) );
 
-         decode_ir         =  ctrlrIf.Instr_dout;
-         decode_npcout     =  fetchIf.npc;
-         decode_init       = 0;
+         // Pipeline regs
+         if( ctrlrIf.enable_decode ) begin
+            decode_ir      =  ctrlrIf.Instr_dout;
+            decode_npcout  =  fetchIf.npc;
+            decode_init    = 0;
+         end
       end //}
 
       // Reset state
@@ -146,13 +151,14 @@ class Monitor extends Agent;
 
    //------------------------EXECUTE---------------
    function void execute(); //{
-      logic [15:0] exec_pcout;
+      logic [15:0] pcout;
       logic [15:0] val_1;
       logic [15:0] val_2;
       logic [2:0]  exec_nzp;
       logic [2:0]  exec_dr;
+      logic [15:0] aluout;
 
-      if( !monIf.reset && ctrlrIf.enable_execute ) begin //{
+      if( !monIf.reset ) begin //{
          //reconfiguring offsets in execute
          //for PC OUT
          case(exec_bypass1)
@@ -168,52 +174,52 @@ class Monitor extends Agent;
          endcase
 
          case(exec_Ectrl[3:2])
-            2'b00: begin exec_pcout = {{5{exec_IR[10]}}, exec_IR[10:0]} + (exec_Ectrl[1] ? exec_npc : val_1); end
-            2'b01: begin exec_pcout = {{7{exec_IR[8]}} , exec_IR[8:0]}  + (exec_Ectrl[1] ? exec_npc : val_1); end
-            2'b10: begin exec_pcout = {{10{exec_IR[5]}}, exec_IR[5:0]}  + (exec_Ectrl[1] ? exec_npc : val_1); end
-            2'b11: begin exec_pcout = 16'b0; end
+            2'b00: begin pcout = {{5{exec_IR[10]}}, exec_IR[10:0]} + (exec_Ectrl[1] ? exec_npc : val_1); end
+            2'b01: begin pcout = {{7{exec_IR[8]}} , exec_IR[8:0]}  + (exec_Ectrl[1] ? exec_npc : val_1); end
+            2'b10: begin pcout = {{10{exec_IR[5]}}, exec_IR[5:0]}  + (exec_Ectrl[1] ? exec_npc : val_1); end
+            2'b11: begin pcout = 16'b0; end
          endcase
 
          //ALU Control unit
          case(exec_Ectrl[5:4])
-            2'b00: begin exec_aluout = val_1 + val_2; end 
-            2'b01: begin exec_aluout = val_1 & val_2; end 
-            2'b10: begin exec_aluout = ~val_1; end
+            2'b00: begin aluout = val_1 + val_2; end 
+            2'b01: begin aluout = val_1 & val_2; end 
+            2'b10: begin aluout = ~val_1; end
             default: begin check("EXEC", FATAL, 1, "Control not supported"); end
          endcase
 
-         exec_Mdata                  =  exec_bypass2[1] ? val_2 : exec_vsr2;
-
          // For ALU, short alout with pcout (not documented)
          case(exec_IR[15:12])
-            ADD: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_pcout  = exec_aluout; end
-            AND: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_pcout  = exec_aluout; end
-            NOT: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_pcout  = exec_aluout; end
-            LD : begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            LDR: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            LDI: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            ST : begin exec_dr = 3'b0;          exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            STR: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            STI: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
-            BR : begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; exec_aluout = exec_pcout;  end
+            ADD: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            AND: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            NOT: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            LD : begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
+            LDR: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
+            LDI: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
+            LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
+            ST : begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
+            STR: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
+            STI: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
+            BR : begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
             JMP: begin exec_dr = 3'b0;          exec_nzp = 3'b111;                                   end 
          endcase
+
+         exec_Mdata                  =  exec_bypass2[1] ? val_2 : exec_vsr2;
 
          if( exec_init ) begin
             exec_Mdata  = 0;
             exec_Wctrl  = 0;
             exec_Mctrl  = 0;
-            exec_aluout = 0;
-            exec_pcout  = 0;
+            aluout      = 0;
+            pcout       = 0;
          end
 
          `ifdef DEBUG_EXEC
-            $display("%t EXEC: IR: 0x%0x bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, execIf.pcout, execIf.M_Data);
+            $display("%t EXEC: IR: 0x%0x bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, pcout, execIf.M_Data);
          `endif
 
-         check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x)", 
-            Instruction::op2str(exec_IR[15:12]), exec_Mdata, execIf.M_Data));
+         check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x) %0x %0x %0x %0x", 
+            Instruction::op2str(exec_IR[15:12]), exec_Mdata, execIf.M_Data, val_2, exec_vsr2, val_1, exec_vsr1));
 
          check("EXEC", WARN, exec_Wctrl === execIf.W_Control_out, $psprintf("[%s] W_control unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), exec_Wctrl, execIf.W_Control_out));
@@ -221,11 +227,11 @@ class Monitor extends Agent;
          check("EXEC", WARN, exec_Mctrl === execIf.Mem_Control_out, $psprintf("[%s] Mem_control unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), exec_Mctrl, execIf.Mem_Control_out));
 
-         check("EXEC", WARN, exec_aluout === execIf.aluout, $psprintf("[%s] alu out unmatched! (%0x != %0x)", 
-            Instruction::op2str(exec_IR[15:12]), exec_aluout, execIf.aluout));
+         check("EXEC", WARN, aluout === execIf.aluout, $psprintf("[%s] alu out unmatched! (%0x != %0x)", 
+            Instruction::op2str(exec_IR[15:12]), aluout, execIf.aluout));
 
-         check("EXEC", WARN, exec_pcout === execIf.pcout, $psprintf("[%s] pc out unmatched! (%0x != %0x)", 
-            Instruction::op2str(exec_IR[15:12]), exec_pcout, execIf.pcout));
+         check("EXEC", WARN, pcout === execIf.pcout, $psprintf("[%s] pc out unmatched! (%0x != %0x)", 
+            Instruction::op2str(exec_IR[15:12]), pcout, execIf.pcout));
 
          check("EXEC", WARN, exec_dr === execIf.dr, $psprintf("[%s] destination register unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), exec_dr, execIf.dr));
@@ -236,18 +242,21 @@ class Monitor extends Agent;
          check("EXEC", WARN, exec_IR === execIf.IR_Exec, $psprintf("[%s] IR Execute unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), exec_IR, execIf.IR_Exec));
 
-         exec_Ectrl   = decodeIf.E_Control;
-         exec_Wctrl   = decodeIf.W_Control;
-         exec_Mctrl   = decodeIf.Mem_Control;
-         exec_IR      = decodeIf.IR;
-         exec_npc     = decodeIf.npc_out;
-         exec_init    = 0;
+         // Pipeline regs
+         if( ctrlrIf.enable_execute ) begin
+            exec_Ectrl      = decodeIf.E_Control;
+            exec_Wctrl      = decodeIf.W_Control;
+            exec_Mctrl      = decodeIf.Mem_Control;
+            exec_IR         = decodeIf.IR;
+            exec_npc        = decodeIf.npc_out;
+            exec_init       = 0;
+            exec_vsr1       = wbIf.VSR1;
+            exec_vsr2       = wbIf.VSR2;
+            exec_bypass1    = {ctrlrIf.bypass_alu_1, ctrlrIf.bypass_mem_1};
+            exec_bypass2    = {ctrlrIf.bypass_alu_2, ctrlrIf.bypass_mem_2};
+            exec_aluout     = aluout;
+         end
       end //}
-
-      exec_bypass1    = {ctrlrIf.bypass_alu_1, ctrlrIf.bypass_mem_1};
-      exec_bypass2    = {ctrlrIf.bypass_alu_2, ctrlrIf.bypass_mem_2};
-      exec_vsr1       = wbIf.VSR1;
-      exec_vsr2       = wbIf.VSR2;
 
       if( monIf.reset ) begin
          exec_Ectrl  = 0;
@@ -315,7 +324,7 @@ class Monitor extends Agent;
 
       wb_W_Control = execIf.W_Control_out;
 
-      if(!monIf.reset && ctrlrIf.enable_writeback) begin//{
+      if(!monIf.reset) begin//{
          case(wb_W_Control)
             2'b00: begin //{
                regFile[wb_dr_in] = wb_aluout; 
@@ -359,17 +368,20 @@ class Monitor extends Agent;
                regFile[i] = 16'bx;
          end //}
 
-         wb_aluout    = execIf.aluout; 
-         wb_pcout     = execIf.pcout;
-         wb_memout    = memIf.memout;
-         wb_sr1       = execIf.sr1;
-         wb_sr2       = execIf.sr2;
-         wb_dr_in     = execIf.dr;
-         wb_W_Control = execIf.W_Control_out;
-         wb_init      = 0;
-
          check("WB", WARN, wb_psr === wbIf.psr, $psprintf("[%s] psr unmatched! (%0b != %0b)", 
             Instruction::op2str(exec_IR[15:12]), wb_psr, wbIf.psr));
+
+         // Pipeline regs
+         if( ctrlrIf.enable_writeback ) begin
+            wb_aluout    = execIf.aluout; 
+            wb_pcout     = execIf.pcout;
+            wb_memout    = memIf.memout;
+            wb_sr1       = execIf.sr1;
+            wb_sr2       = execIf.sr2;
+            wb_dr_in     = execIf.dr;
+            wb_W_Control = execIf.W_Control_out;
+            wb_init      = 0;
+         end
       end //}
 
       if(monIf.reset) begin //{
@@ -439,8 +451,8 @@ class Monitor extends Agent;
             // regFile is updated by wb sync function at the same clock. Add timestep delay to remove that hazard
             //TODO:
             #1;
-            check("A_WB", WARN, regFile[wb_sr1] === vsr1, $psprintf("vsr1 unmatched! (%0x != %0x)", regFile[wb_sr1], vsr1));
-            check("A_WB", WARN, regFile[wb_sr2] === vsr2, $psprintf("vsr2 unmatched! (%0x != %0x)", regFile[wb_sr2], vsr2));
+            check("A_WB", WARN, regFile[sr1] === vsr1, $psprintf("vsr1(%0d) unmatched! (%0x != %0x)", sr1, regFile[sr1], vsr1));
+            check("A_WB", WARN, regFile[sr2] === vsr2, $psprintf("vsr2(%0d) unmatched! (%0x != %0x)", sr2, regFile[sr2], vsr2));
          end
 
       end

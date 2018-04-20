@@ -5,13 +5,19 @@ class Agent;
 
    virtual function void printInstMemIndex( integer index );
       check("AGENT", FATAL, index >= 0 && index < top.test.env.instMem.size(), 
-         $psprintf("Out of bounds instruct memory access %0d", index));
+         $psprintf("[printInstMemIndex] Out of bounds instruct memory access at %0d", index));
       top.test.env.instMem[index].print();
    endfunction
 
-   virtual function Instruction getInstIndex( integer index );
-      check("AGENT", FATAL, index >= 0 && index < top.test.env.instMem.size(), 
-         $psprintf("Out of bounds instruct memory access %0d", index));
+   virtual function Instruction getInstIndex( integer index, bit safe=0 );
+      bit cond = index >= 0 && index < top.test.env.instMem.size();
+      if( !safe )
+         check("AGENT", FATAL, cond, 
+            $psprintf("[getInstIndex] Out of bounds instruct memory access at %0d", index));
+
+      // Stick to last value for out of bounds access
+      index = cond ? index : top.test.env.instMem.size() - 1;
+
       return top.test.env.instMem[index];
    endfunction
 

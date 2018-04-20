@@ -4,6 +4,9 @@
 `define DYN_INST_CNT   1000000
 `define LC3_PIPE_DEPTH 5
 `define DEBUG_EXEC
+//`define DEBUG_MEM
+`define T_FETCH_MAX    10
+`define T_DATA_MAX     10
 //`define TOP_MONITOR
 
 `include "types.sv"

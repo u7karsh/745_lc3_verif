@@ -96,7 +96,7 @@ class Instruction; //{
 
 
    function void print();
-      $display("%t [INSTR] 0x%0x %s, dst: %0d, src1: %0d, src2: %0d, immValid: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 
+      $display("%t [INSTR] 0x%0x %s, dst: %0d, src1: %0d, src2: %0d, immV: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 
                $time, encodeInst(), opcode2str(),dst, src1, src2, immValid, imm, pcOffset9, pcOffset6, baseR);
    endfunction
 

@@ -6,9 +6,52 @@ UCDB=""
 MERGED_UCDB=$COV_DIR/merged.ucdb
 MINI_REPORT=$LOG_DIR/mini_report.log
 ECHO_VSIM=1
-COV=1
+COV=0
 CLI=-c
+SV_SEED=100
 
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    -s|--seed)
+    SV_SEED="$2"
+    shift # past argument
+    shift # past value
+    ;;
+    -g|--gui)
+    CLI=
+    shift # past argument
+    ;;
+    -c|--cov)
+    COV=1
+    shift # past argument
+    ;;
+    -n|--no_echo)
+    ECHO_VSIM=0
+    shift # past argument
+    ;;
+    -h|--help)
+    echo "Usage:"
+    echo "-s  <value> set the seed value (default: 100)"
+    echo "-g          start in gui mode"
+    echo "-c          enable coverage"
+    echo "-n          disable vsim log echoing"
+    echo "-h          show help text"
+    exit 1
+    shift # past argument
+    ;;
+    *)    # unknown option
+    POSITIONAL+=("$1") # save it in an array for later
+    shift # past argument
+    ;;
+esac
+done
+set -- "${POSITIONAL[@]}" # restore positional parameters
+
+## Compile DUT
 vlog -sv dut/*
 
 get_line_number(){
@@ -27,9 +70,9 @@ run_test(){
    fi
    vlog -sv +define+TEST=$1 tb/top.sv
    if [ $ECHO_VSIM = 1 ]; then
-      vsim $CLI -do "$VSIM_DO" top |& tee  $LOG
+      vsim $CLI -do "$VSIM_DO" -sv_seed $SV_SEED top |& tee  $LOG
    else
-      vsim $CLI -do "$VSIM_DO" top &> $LOG
+      vsim $CLI -do "$VSIM_DO" -sv_seed $SV_SEED top &> $LOG
    fi
    START=$(get_line_number "BEGIN REPORT" $LOG)
    END=$(get_line_number "END REPORT" $LOG)

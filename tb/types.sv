@@ -1,6 +1,7 @@
 // Data memory
-typedef reg[15:0] data_t;
-typedef reg [2:0] reg_t;
+typedef reg [15:0] data_t;
+typedef reg [2:0]  reg_t;
+typedef reg [3:0]  time_t;
 
 typedef enum {
    WARN,
