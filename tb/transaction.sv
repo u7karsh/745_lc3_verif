@@ -96,8 +96,8 @@ class Instruction; //{
 
 
    function void print();
-      $display("%t [INSTR] %s, dst: %0d, src1: %0d, src2: %0d, immValid: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 
-               $time, opcode2str(),dst, src1, src2, immValid, imm, pcOffset9, pcOffset6, baseR);
+      $display("%t [INSTR] 0x%0x %s, dst: %0d, src1: %0d, src2: %0d, immValid: %0d, imm: %0x, off9: %0x, off6: %0x, baseR: %0x", 
+               $time, encodeInst(), opcode2str(),dst, src1, src2, immValid, imm, pcOffset9, pcOffset6, baseR);
    endfunction
 
    function reg[15:0] encodeInst();
@@ -111,13 +111,13 @@ class Instruction; //{
          ADD: begin //{
                  encInst[8:6]   = this.src1;
                  encInst[5]     = this.immValid;
-                 encInst[4:0]   = this.immValid ? this.imm : this.src2;
+                 encInst[4:0]   = this.immValid ? this.imm : {2'b0, this.src2};
               end //}
 
          AND: begin //{
                  encInst[8:6]   = this.src1;
                  encInst[5]     = this.immValid;
-                 encInst[4:0]   = this.immValid ? this.imm : this.src2;
+                 encInst[4:0]   = this.immValid ? this.imm : {2'b0, this.src2};
               end //}
 
          NOT: begin //{

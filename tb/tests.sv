@@ -24,7 +24,7 @@ class BaseStoreLoadTest extends Test;
          instMemEntry.create(STR, 0, 0, 0, 0, 0, 0, i, 0, 0, 0, 0);
          pushInst(instMemEntry);
          for( int j = 0; j < 8; j++ ) begin
-            instMemEntry.create(AND, j, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            instMemEntry.create(AND, j, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
             pushInst(instMemEntry);
          end
       end

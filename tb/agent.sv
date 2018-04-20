@@ -1,7 +1,7 @@
 // Class for common functionality between monitor and driver
 class Agent;
-   integer num_assert  = 0;
-   integer fail_assert = 0;
+   integer num_assert[ string ];
+   integer fail_assert[ string ];
 
    virtual function void printInstMemIndex( integer index );
       check("AGENT", FATAL, index >= 0 && index < top.test.env.instMem.size(), 
@@ -33,12 +33,17 @@ class Agent;
 
    // assert 
    virtual function void check(string stage, severityT severity, reg cond, string A);
-      num_assert        += 1;
+      if( !num_assert.exists(stage) ) begin
+         num_assert [stage]    = 0;
+         fail_assert[stage]    = 0;
+      end
+
+      num_assert[stage]       += 1;
       if(!cond) begin
-         fail_assert    += 1;
+         fail_assert[stage]   += 1;
          if( severity == FATAL ) begin
-            void'(top.test.eos());
             $fatal(1, "%t [CHECKER.%s] %s", $time, stage, A);
+            void'(top.test.eos());
          end
          else
             $warning("%t [CHECKER.%s] %s", $time, stage, A);

@@ -1,12 +1,52 @@
 #!/bin/bash
 
+LOG_DIR=logs
+COV_DIR=coverage
+UCDB=""
+MERGED_UCDB=$COV_DIR/merged.ucdb
+MINI_REPORT=$LOG_DIR/mini_report.log
+ECHO_VSIM=1
+CLI=-c
+
 vlog -sv dut/*
 
-run_test(){
-   vlog -sv +define+TEST=$1 tb/top.sv
-   vsim -c -do "onfinish stop; run -all; fcover report -cvg; quit" top -suppress 8637 | tee ${1}.log
+get_line_number(){
+   LINE=`grep -n "$1" $2 | cut -f1 -d:`
+   echo $LINE
 }
+
+run_test(){
+   mkdir -p $LOG_DIR
+   mkdir -p $COV_DIR
+   UCDB+=" $COV_DIR/${1}.ucdb"
+   LOG=$LOG_DIR/${1}.log
+   vlog -sv +define+TEST=$1 tb/top.sv
+   if [ $ECHO_VSIM = 1 ]; then
+      vsim $CLI -do "run -all;" top |& tee  $LOG
+      #vsim $CLI -do "coverage save -onexit $COV_DIR/${1}.ucdb; onfinish stop; run -all; fcover report -cvg; quit" top |& tee  $LOG
+   else
+      vsim $CLI -do "coverage save -onexit $COV_DIR/${1}.ucdb; onfinish stop; run -all; fcover report -cvg; quit" top &> $LOG
+   fi
+   START=$(get_line_number "BEGIN REPORT" $LOG)
+   END=$(get_line_number "END REPORT" $LOG)
+   echo >> $MINI_REPORT
+   echo "########### $1 Begin ###########" >> $MINI_REPORT
+   sed -n $START,${END}p $LOG >> $MINI_REPORT
+   grep "Errors:" $LOG >> $MINI_REPORT
+   echo "########### $1 End ###########" >> $MINI_REPORT
+}
+
+do_coverage(){
+   ## Merge all ucdbs
+   vcover merge $UCDB -out $MERGED_UCDB
+   vcover report -cvg -details $MERGED_UCDB &> $COV_DIR/final_report.log
+}
+
+rm -rf $MINI_REPORT
 
 ## All tests
 run_test BaseStoreLoadTest
 run_test Test 
+
+#do_coverage
+cat $MINI_REPORT

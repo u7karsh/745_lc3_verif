@@ -17,10 +17,14 @@ class Test; //{
    // all tests. It doesn't have LD/SD and BR as mem warmup
    // is not done
    virtual function void sequenceInstr();
-      integer numTrans             = 10;
+      integer numTrans             = 8 + 15;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
-      for( int i = 0; i < numTrans; i++ ) begin
+      for( int i = 0; i < 8; i++ ) begin
+         instMemEntry.create(AND, 7-i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+         pushInst(instMemEntry);
+      end
+      for( int i = 0; i < numTrans - 8; i++ ) begin
          if( instMemEntry.randomize() with { opcode inside {ADD, /*BR,*/ AND, NOT/*, LD, LDR, LDI, LEA, ST, STI, STR*/}; } ) begin
             pushInst(instMemEntry);
          end else begin
@@ -30,6 +34,11 @@ class Test; //{
       end
    endfunction
 
+   function void displayInstr();
+      for( int i = 0; i < instCnt; i++ )
+         top.test.env.instMem[i].print();
+   endfunction
+
    function void pushInst( Instruction inst );
       if( instCnt < env.instMem.size() ) begin
          ctrlCounter          += 1;
@@ -37,17 +46,19 @@ class Test; //{
 
          // Control inst in pipeline check
          if( inst.isCtrl() ) begin
-            if( ctrlCounter < `LC3_PIPE_DEPTH )
+            if( ctrlCounter < `LC3_PIPE_DEPTH ) begin
                $fatal(1, "More than 1 control instruction in pipeline");
                eos(0);
+            end
             ctrlCounter        = 0;
          end
 
          // Memory inst in pipeline check
          if( inst.isMem() ) begin
-            if( memCounter < `LC3_PIPE_DEPTH )
+            if( memCounter < `LC3_PIPE_DEPTH ) begin
                $fatal(1, "More than 1 memory instruction in pipeline");
                eos(0);
+            end
             memCounter         = 0;
          end
 
@@ -84,24 +95,48 @@ class Test; //{
 
    // End of simulation function
    function void eos( bit passReport=1 );
+      string stage;
+      integer mon_num_assert = 0, mon_fail_assert = 0;
+      integer dri_num_assert = 0, dri_fail_assert = 0;
       $display("----------- END OF TEST -------------");
+      $display("----------- BEGIN REPORT ------------");
       if( passReport ) begin
-         $display("----------- BEGIN REPORT ------------");
-         $display("Stats [Driver ]: %0d / %0d Evaluations Failed", env.driver.fail_assert, env.driver.num_assert);
-         $display("Stats [Monotor]: %0d / %0d Evaluations Failed", env.monitor.fail_assert, env.monitor.num_assert);
+         $display("Stats [Driver ]: ");
+         if( env.driver.num_assert.first(stage) ) begin
+            do begin
+               dri_num_assert    += env.driver.num_assert[stage];
+               dri_fail_assert   += env.driver.fail_assert[stage];
+               $display("      [%s\t]\t%0d / %0d Evaluations Failed", stage, env.driver.fail_assert[stage], env.driver.num_assert[stage]);
+            end
+            while( env.driver.num_assert.next(stage) );
+         end
+         $display("      [TOTAL\t]\t%0d / %0d Evaluations Failed", dri_fail_assert, dri_num_assert);
+
+         $display("\nStats [Monitor]: ");
+         if( env.monitor.num_assert.first(stage) ) begin
+            do begin
+               mon_num_assert    += env.monitor.num_assert[stage];
+               mon_fail_assert   += env.monitor.fail_assert[stage];
+               $display("      [%s\t]\t%0d / %0d Evaluations Failed", stage, env.monitor.fail_assert[stage], env.monitor.num_assert[stage]);
+            end
+            while( env.monitor.num_assert.next(stage) );
+         end 
+         $display("      [TOTAL\t]\t%0d / %0d Evaluations Failed", mon_fail_assert, mon_num_assert);
       end
 
-      if( passReport && ((env.driver.fail_assert + env.monitor.fail_assert) == 0) )
+      if( passReport && ((mon_fail_assert + dri_fail_assert) == 0) )
          $display("--PASSED--");
       else
          $display("--FAILED--");
    
       $display("------------ END REPORT -------------\n");
+      $finish;
    endfunction
 
    task run();
       // Sequence instructions
       sequenceInstr();
+      //displayInstr();
 
       $display("--------------- Running Test: %s -------------", name);
       env.run();
