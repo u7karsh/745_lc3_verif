@@ -25,8 +25,6 @@ class Monitor extends Agent;
    reg [5:0]  decode_Ectrl;
    reg        decode_Mctrl;
    reg [1:0]  decode_Wctrl;
-   // TODO: do we really need this? DUT is inconsistent
-   // with IR based lookup
    reg        decode_init;
 
    /*
@@ -41,6 +39,7 @@ class Monitor extends Agent;
    reg [15:0] exec_vsr1, exec_vsr2;
    reg [1:0]  exec_Wctrl;
    reg        exec_Mctrl;
+   reg [15:0] exec_Mdata;
    reg        exec_init;
 
    /*
@@ -130,8 +129,8 @@ class Monitor extends Agent;
 
    endfunction //}
 
+   //------------------------EXECUTE---------------
    function void execute(); //{
-
       reg [2:0]  exe_sr1;
       reg [2:0]  exe_sr2;
       
@@ -140,7 +139,6 @@ class Monitor extends Agent;
       logic [15:0] val_2;
       logic [2:0]  exec_nzp;
       logic [2:0]  exec_dr;
-      logic [15:0] exec_Mdata;
 
       if( !monIf.reset && ctrlrIf.enable_execute ) begin //{
          //reconfiguring offsets in execute
@@ -172,31 +170,40 @@ class Monitor extends Agent;
             default: begin check("EXEC", FATAL, 1, "Control not supported"); end
          endcase
 
+         exec_Mdata            =  exec_bypass2[1] ? val_2 : exec_vsr2;
+
          //TODO: SR1 and SR2
          //TODO: Why don't care for mem data?
          // For ALU, short alout with pcout (not documented)
-         exec_Mdata = 16'bx;
          case(exec_IR[15:12])
-            ADD: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_pcout  = exec_aluout; end
-            AND: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_pcout  = exec_aluout; end
-            NOT: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_pcout  = exec_aluout; end
-            LD : begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            LDR: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            LDI: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            ST : begin exec_dr = 3'b0;          exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            STR: begin exec_dr = 3'b0;          exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            STI: begin exec_dr = 3'b0;          exec_nzp = 3'b000;       exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            BR : begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9];exec_Mdata = val_1; exec_aluout = exec_pcout;  end
-            JMP: begin exec_dr = 3'b0;          exec_nzp = 3'b111;       exec_Mdata = val_1;                            end 
+            ADD: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_pcout  = exec_aluout; end
+            AND: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_pcout  = exec_aluout; end
+            NOT: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_pcout  = exec_aluout; end
+            LD : begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            LDR: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            LDI: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            ST : begin exec_dr = 3'b0;          exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            STR: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            STI: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        exec_aluout = exec_pcout;  end
+            BR : begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; exec_aluout = exec_pcout;  end
+            JMP: begin exec_dr = 3'b0;          exec_nzp = 3'b111;                                   end 
          endcase
 
          if( exec_init ) begin
+            exec_Mdata  = 0;
             exec_Wctrl  = 0;
             exec_Mctrl  = 0;
             exec_aluout = 0;
             exec_pcout  = 0;
          end
+
+         `ifdef DEBUG_EXEC
+            $display("%t IR: 0x%0x bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, execIf.pcout, execIf.M_Data);
+         `endif
+
+         check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x)", 
+            Instruction::op2str(exec_IR[15:12]), exec_Mdata, execIf.M_Data));
 
          check("EXEC", WARN, exec_Wctrl === execIf.W_Control_out, $psprintf("[%s] W_control unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), exec_Wctrl, execIf.W_Control_out));
@@ -224,11 +231,6 @@ class Monitor extends Agent;
 
          check("EXEC", WARN, exec_IR === execIf.IR_Exec, $psprintf("[%s] IR Execute unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), exec_IR, execIf.IR_Exec));
-
-         //check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x)", 
-         //   Instruction::op2str(exec_IR[15:12]), exec_Mdata, execIf.M_Data));
-
-         //$display("%0x %0b %0b %0b %0x %0x %0x %0x %0x %0x %0x %0x %0x", exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, execIf.aluout, execIf.pcout, execIf.sr1);
 
          exec_Ectrl   = decodeIf.E_Control;
          exec_Wctrl   = decodeIf.W_Control;
