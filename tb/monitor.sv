@@ -1,5 +1,6 @@
 // Assuming DUT's controller as golden for pipe stages
 class Monitor extends Agent;
+   virtual Lc3_dr_if          driverIf;
    virtual Lc3_mon_if         monIf;
    virtual Lc3_mon_if.FETCH   fetchIf;
    virtual Lc3_mon_if.DECODE  decodeIf;
@@ -63,6 +64,40 @@ class Monitor extends Agent;
 
    //Register File   
    logic [15:0] regFile[0:7];
+
+   reg [2:0]  ctrl_dst; //from exec 
+   reg [2:0]  ctrl_sr1; //from decode
+   reg [2:0]  ctrl_sr2; //from decode
+   reg        ctrl_AluBit;
+   reg        ctrl_storeBit;
+   reg        ctrl_loadBit;
+   reg        ctrl_brBit;
+   reg [15:0] ctrl_decIR;
+   reg [15:0] ctrl_execIR;
+   reg        ctrl_DSBit;
+
+   reg [2:0]  ctrl_psr;
+   reg [2:0]  ctrl_NZP;
+   reg [15:0] ctrl_ImemOut;
+
+   reg       ctrl_enUpPC;
+   reg       ctrl_enFetch;
+   reg       ctrl_enDecode;
+   reg       ctrl_enExec;
+   reg       ctrl_enWB;
+   reg [1:0] ctrl_memState;
+   reg [1:0] ctrl_NmemState;
+   reg [2:0] ctrl_NenState;
+   reg [2:0] ctrl_enState;
+   reg [1:0] ctrl_fsm;
+   reg [1:0] ctrl_nextFsm;
+   reg       ctrl_brTaken;
+   reg       ctrl_bpAlu1;
+   reg       ctrl_bpAlu2;
+   reg       ctrl_bpMem1;
+   reg       ctrl_bpMem2;
+   reg       ctrl_complete_data;
+   reg       ctrl_complete_instr;
 
    reg [15:0] execute_ir, exec_E_Control, decode_npcout;
 
@@ -190,6 +225,12 @@ class Monitor extends Agent;
 
          // For ALU, short alout with pcout (not documented)
          case(exec_IR[15:12])
+<<<<<<< HEAD
+            ADD, AND, NOT, LD, LDR, LDI, LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            ST, STR, STI:                     begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
+            BR :                              begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
+            JMP:                              begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
+=======
             ADD: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
             AND: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
             NOT: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
@@ -202,6 +243,7 @@ class Monitor extends Agent;
             STI: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
             BR : begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
             JMP: begin exec_dr = 3'b0;          exec_nzp = 3'b111;                                   end 
+>>>>>>> 980e303f5d76d02e622e4526be05a9f7b182abec
          endcase
 
          exec_Mdata                  =  exec_bypass2[1] ? val_2 : exec_vsr2;
@@ -301,6 +343,7 @@ class Monitor extends Agent;
             end //}
          endcase
 
+         //FIXME: Instruction opcode as exec_IR (change it)
          check("MEM", WARN, mem_Dmem_rd === memIf.Data_rd, $psprintf("[%s] mem read unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), mem_Dmem_rd, memIf.Data_rd));
 
@@ -396,9 +439,268 @@ class Monitor extends Agent;
       end //}
    endfunction
 
-   function new( virtual Lc3_mon_if monIf ); //{
+   //-------------------------------- CONTROLLER ---------------------------//
+   function void controller(); //{
+     
+     if(!monIf.reset)
+     begin//{
+
+        ctrl_bpAlu1      = 0;
+        ctrl_bpAlu2      = 0;
+        ctrl_bpMem1      = 0;
+        ctrl_bpMem2      = 0;
+        ctrl_DSBit       = 0;
+        ctrl_enState     = 0;
+        ctrl_NenState    = 0;
+
+        ctrl_decIR    = decodeIf.IR;
+        ctrl_execIR   = execIf.IR_Exec;
+        ctrl_psr      = wbIf.psr; 
+        ctrl_NZP      = execIf.NZP;
+        ctrl_ImemOut  = driverIf.Instr_dout;
+
+        //alu and load/store bits
+        ctrl_AluBit   = ((ctrl_execIR[15:12] == AND) || (ctrl_execIR[15:12] == ADD) || (ctrl_execIR[15:12] == NOT));
+        ctrl_storeBit = ((ctrl_execIR[15:12] == ST ) || (ctrl_execIR[15:12] == STI) || (ctrl_execIR[15:12] == STR));
+        ctrl_DSBit    = ((ctrl_decIR[15:12] == ST )  || (ctrl_decIR[15:12] == STI)  || (ctrl_decIR[15:12] == STR));
+        ctrl_loadBit  = ((ctrl_execIR[15:12] == LD ) || (ctrl_execIR[15:12] == LDI) || (ctrl_execIR[15:12] == LDR));
+        ctrl_brBit    = ((ctrl_execIR[15:12] == BR ) || (ctrl_execIR[15:12] == JMP));
+
+        ctrl_dst      = !(ctrl_storeBit && ctrl_brBit) ? ctrl_execIR[11:9] : 0;
+        ctrl_sr1      = ctrl_decIR[8:6];
+        ctrl_sr2      = ctrl_DSBit ? ctrl_decIR[11:9] : (!ctrl_decIR[5] ? ctrl_decIR[2:0] : 0);
+
+        //------------------------------- BYPASS LOGIC BEGIN ---------------------------//
+
+        //bypass ALU operation
+        case(ctrl_decIR[15:12])
+           ADD, AND, NOT: begin //{ 
+              if(ctrl_AluBit || (ctrl_execIR[15:12] == LEA)) begin //{ 
+                 ctrl_bpAlu1  = (ctrl_dst == ctrl_sr1);
+                 ctrl_bpAlu2  = !ctrl_decIR[5] ? (ctrl_dst == ctrl_sr2) : 0; 
+              end //}
+              else if(ctrl_loadBit) begin //{
+                 ctrl_bpMem1  = (ctrl_dst == ctrl_sr1);
+                 ctrl_bpMem2  = !ctrl_decIR[5] ? (ctrl_dst == ctrl_sr2) : 0;
+              end //}
+           end //}
+           LDR, JMP: begin //{
+              if(ctrl_AluBit) begin //{
+                 ctrl_bpAlu1  = (ctrl_dst == ctrl_sr1);
+              end //}
+           end //}
+           STR: begin //{
+              if(ctrl_AluBit) begin //{
+                 ctrl_bpAlu1  = (ctrl_dst == ctrl_sr1);
+                 ctrl_bpAlu2  = (ctrl_dst == ctrl_sr2);
+              end //}
+           end //}
+           ST, STI: begin //{
+              if(ctrl_AluBit) begin //{
+                 ctrl_bpAlu2  = (ctrl_dst == ctrl_sr2);
+              end //}
+           end //}
+        endcase
+
+        //$display("[%s] NOT_IMM %0b, ALU_2 %0b, IR_DST %0b, DEC_SR1 %0b, DEC_SR2 %0b",Instruction::op2str(ctrl_decIR[15:12]), !ctrl_decIR[5], ctrl_bpAlu2, ctrl_dst, ctrl_sr1, ctrl_sr2);
+
+
+         check("CTRLR", WARN, ctrl_bpAlu1 === ctrlrIf.bypass_alu_1, $psprintf("[%s] BYPASS ALU 1 unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]), ctrl_bpAlu1, ctrlrIf.bypass_alu_1));
+
+         check("CTRLR", WARN, ctrl_bpAlu2 === ctrlrIf.bypass_alu_2, $psprintf("[%s] BYPASS ALU 2 unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]), ctrl_bpAlu2, ctrlrIf.bypass_alu_2));
+
+         check("CTRLR", WARN, ctrl_bpMem1 === ctrlrIf.bypass_mem_1, $psprintf("[%s] BYPASS MEM 1 unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]), ctrl_bpMem1, ctrlrIf.bypass_mem_1));
+
+         check("CTRLR", WARN, ctrl_bpMem2 === ctrlrIf.bypass_mem_2, $psprintf("[%s] BYPASS MEM 2 unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]), ctrl_bpMem2, ctrlrIf.bypass_mem_2));
+
+        //------------------------------- BYPASS LOGIC END ----------------------------//
+       //----------------------- MEM STATE BEGIN -------------------//
+       ctrl_memState      = ctrl_NmemState;
+       //$display("%0d %0d %0x", driverIf.complete_data, ctrl_complete_data, ctrlrIf.mem_state);
+       case (ctrl_memState)
+          2'b00: begin ctrl_NmemState = driverIf.complete_data ? 2'b11 : 2'b00; end
+          2'b01: begin ctrl_NmemState = driverIf.complete_data ? (ctrl_loadBit ? 2'b00 : (ctrl_storeBit ? 2'b10 : 2'b01)) : 2'b01; end
+          2'b10: begin ctrl_NmemState = driverIf.complete_data ? 2'b11 : 2'b10; end
+          2'b11: begin //{
+                    case(ctrl_decIR[15:12]) //{
+                       LD, LDR : ctrl_NmemState = 2'b00;
+                       LDI, STI: ctrl_NmemState = 2'b01;
+                       ST, STR : ctrl_NmemState = 2'b10;
+                    endcase //}
+                 end //}
+       endcase
+
+       check("CTRLR", WARN, ctrl_memState === ctrlrIf.mem_state, $psprintf("[%s] mem state unmatched! (%0x != %0x, %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),  ctrl_memState, ctrlrIf.mem_state, ctrl_NmemState));
+       //----------------------- MEM STATE END ---------------------//
+       //---------------------- ENABLE SIGNALS BEGIN ---------------------//
+       ctrl_enState       = ctrl_NenState;
+       case(ctrl_enState)
+           3'b000: begin //{
+              ctrl_enFetch  = 0;
+              ctrl_enDecode = 0;
+              ctrl_enExec   = 0;
+              ctrl_enWB     = 0;
+              ctrl_brTaken  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) ? (|(ctrl_NZP && ctrl_psr) ? 1 : 0) : 0;
+              ctrl_enUpPC   = 0;
+              ctrl_NenState = 3'b001;
+           end //}
+           3'b001: begin 
+              ctrl_enFetch  = 1;
+              ctrl_enDecode = 0;
+              ctrl_enExec   = 0;
+              ctrl_enWB     = 0;
+              ctrl_brTaken  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) ? (|(ctrl_NZP && ctrl_psr) ? 1 : 0) : 0;
+              ctrl_enUpPC   = ctrl_complete_instr;
+              ctrl_NenState = 3'b010;
+           end //}
+           3'b010: begin //{
+              ctrl_enFetch  = 1;
+              ctrl_enDecode = 1;
+              ctrl_enExec   = 0;
+              ctrl_enWB     = 0;
+              ctrl_brTaken  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) ? (|(ctrl_NZP && ctrl_psr) ? 1 : 0) : 0;
+              ctrl_enUpPC   = ctrl_complete_instr;
+              ctrl_NenState = 3'b011;
+           end //}
+           3'b011: begin //{
+              ctrl_enFetch  = 1;
+              ctrl_enDecode = 1;
+              ctrl_enExec   = 1;
+              ctrl_enWB     = 0;
+              ctrl_brTaken  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) ? (|(ctrl_NZP && ctrl_psr) ? 1 : 0) : 0;
+              ctrl_enUpPC   = ctrl_complete_instr;
+              ctrl_NenState = 3'b100;
+           end //}
+           3'b100: begin //{
+              ctrl_enFetch  = 1;
+              ctrl_enDecode = 1;
+              ctrl_enExec   = 1;
+              ctrl_enWB     = 1;
+              ctrl_brTaken  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) ? (|(ctrl_NZP && ctrl_psr) ? 1 : 0) : 0;
+              ctrl_enUpPC   = ctrl_complete_instr;
+              ctrl_NenState = 3'b100;
+           end //}
+        endcase
+
+
+        ctrl_fsm = ctrl_nextFsm;
+        case(ctrl_fsm)
+           2'b00: begin //{
+              ctrl_enFetch  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 0 : 1;
+              ctrl_enDecode = 1;
+              ctrl_enExec   = 1;
+              ctrl_enWB     = 1; 
+              ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken ? 0 : 1; /*ctrl_complete_instr;*/
+              ctrl_nextFsm  = ((ctrl_ImemOut[15:12] == LD ) || (ctrl_ImemOut[15:12] == LDR) || 
+                               (ctrl_ImemOut[15:12] == LDI) || (ctrl_ImemOut[15:12] == STI) || 
+                               (ctrl_ImemOut[15:12] == ST ) || (ctrl_ImemOut[15:12] == STR) || 
+                               (ctrl_ImemOut[15:12] == BR ) || (ctrl_ImemOut[15:12] == JMP)) ? 2'b01 : 2'b00;
+           end //}
+           2'b01: begin //{
+              ctrl_enFetch  = 0;
+              ctrl_enDecode = 0;
+              ctrl_enExec   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken? 1 : 0;
+              ctrl_enWB     = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 1 : 0;
+              ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 1 : 0;
+              if ((ctrl_ImemOut[15:12] == LD) || (ctrl_ImemOut[15:12] == LDR))
+                 ctrl_nextFsm = 2'b00;
+              else if ((ctrl_ImemOut[15:12] == LDI) || (ctrl_ImemOut[15:12] == STI) || ((ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken))
+                 ctrl_nextFsm = 2'b11;
+              else if ((ctrl_ImemOut[15:12] == ST) || (ctrl_ImemOut[15:12] == STR))
+                 ctrl_nextFsm = 2'b10;
+           end //}
+           2'b10: begin //{ 
+              ctrl_enFetch  = 1;
+              ctrl_enDecode = 1;
+              ctrl_enExec   = 1;
+              ctrl_enWB     = 0; 
+              ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken ? 0 : 1;
+              ctrl_nextFsm  = 2'b00;
+           end //}
+           2'b11: begin //{
+              ctrl_enFetch  = 0;
+              ctrl_enDecode = 0;
+              ctrl_enExec   = 0;
+              ctrl_enWB     = 0; 
+              ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 0 : 1;
+              ctrl_nextFsm  = (ctrl_ImemOut[15:12] == LDI) ? 2'b00 : (ctrl_ImemOut[15:12] == STI) ? 2'b10 : 2'b00;
+           end //}
+        endcase
+
+        $display ("ct_state %0b, branch_taken %0b", ctrl_fsm, ctrl_brTaken); 
+
+       check("CTRLR", WARN, ctrl_enFetch === ctrlrIf.enable_fetch, $psprintf("[%s] enable fetch state unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_enFetch, ctrlrIf.enable_fetch));
+
+       check("CTRLR", WARN, ctrl_enDecode === ctrlrIf.enable_decode, $psprintf("[%s] enable decode unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_enDecode, ctrlrIf.enable_decode));
+
+       check("CTRLR", WARN, ctrl_enExec === ctrlrIf.enable_execute, $psprintf("[%s] enable execute unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_enExec, ctrlrIf.enable_execute));
+
+       check("CTRLR", WARN, ctrl_enWB === ctrlrIf.enable_writeback, $psprintf("[%s] enable write back unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_enWB, ctrlrIf.enable_writeback));
+
+       check("CTRLR", WARN, ctrl_enUpPC === ctrlrIf.enable_updatePC, $psprintf("[%s] enable update PC unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_enUpPC, ctrlrIf.enable_updatePC));
+         
+       check("CTRLR", WARN, ctrl_brTaken === ctrlrIf.br_taken, $psprintf("[%s] branch taken unmatched! (%0x != %0x)", 
+            Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_brTaken, ctrlrIf.br_taken));
+
+       //---------------------- ENABLE SIGNALS END -----------------------//
+       end //}
+
+       else begin //{
+          ctrl_dst         = 0; //from exec 
+          ctrl_sr1         = 0; //from decode
+          ctrl_sr2         = 0; //from decode
+          ctrl_AluBit      = 0;
+          ctrl_storeBit    = 0;
+          ctrl_loadBit     = 0;
+          ctrl_brBit       = 0;
+          ctrl_decIR       = 0;
+          ctrl_execIR      = 0;
+          ctrl_DSBit       = 0;
+
+          ctrl_psr         = 0;
+          ctrl_NZP         = 0;
+          ctrl_ImemOut     = 0;
+
+          //mem state
+          ctrl_memState    = 2'b11;
+          ctrl_NmemState   = ctrl_memState;
+          ctrl_enState     = 0;
+          ctrl_NenState    = 0;
+          ctrl_fsm         = 0;
+          ctrl_nextFsm     = 0;
+
+          ctrl_enUpPC      = 0;
+          ctrl_enFetch     = 0;
+          ctrl_enDecode    = 0; 
+          ctrl_enExec      = 0;
+          ctrl_enWB        = 0;
+          ctrl_brTaken     = 0;
+
+          //bypass signals
+          ctrl_bpAlu1      = 0;
+          ctrl_bpAlu2      = 0;
+          ctrl_bpMem1      = 0;
+          ctrl_bpMem2      = 0;
+       end //}
+       ctrl_complete_data  = driverIf.complete_data;
+       ctrl_complete_instr = driverIf.complete_instr;
+    endfunction //}
+
+
+   function new( virtual Lc3_mon_if monIf, virtual Lc3_dr_if driverIf ); //{
       super.new();
       this.monIf        = monIf;
+      this.driverIf     = driverIf;
       this.fetchIf      = monIf.FETCH;
       this.decodeIf     = monIf.DECODE;
       this.execIf       = monIf.EXECUTE;
@@ -465,6 +767,7 @@ class Monitor extends Agent;
          execute();
          memAccess();
          writeback();
+         controller();
          @(posedge monIf.clk);
       end
    endtask

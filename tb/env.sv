@@ -14,7 +14,7 @@ class Env;
 
    function new(virtual Lc3_dr_if  driverIf, virtual Lc3_mon_if monIf);
       driver   = new( driverIf );
-      monitor  = new( monIf );
+      monitor  = new( monIf, driverIf );
       cov      = new( monIf );
    endfunction
 

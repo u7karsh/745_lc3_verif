@@ -44,6 +44,10 @@ class Driver extends Agent;
          // Modelling data delay
          repeat($random % `T_DATA_MAX) @(posedge driverIf.clk);
          driverIf.complete_data           = 1;
+<<<<<<< HEAD
+         $display("%t dataout", $time);
+=======
+>>>>>>> 980e303f5d76d02e622e4526be05a9f7b182abec
 
          // Data memory read/write handling
          if( driverIf.Data_rd ) begin

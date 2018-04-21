@@ -5,8 +5,13 @@
 `define LC3_PIPE_DEPTH 5
 `define DEBUG_EXEC
 //`define DEBUG_MEM
+<<<<<<< HEAD
+`define T_FETCH_MAX    0
+`define T_DATA_MAX     0
+=======
 `define T_FETCH_MAX    10
 `define T_DATA_MAX     10
+>>>>>>> 980e303f5d76d02e622e4526be05a9f7b182abec
 //`define TOP_MONITOR
 
 `include "types.sv"
