@@ -225,25 +225,10 @@ class Monitor extends Agent;
 
          // For ALU, short alout with pcout (not documented)
          case(exec_IR[15:12])
-<<<<<<< HEAD
             ADD, AND, NOT, LD, LDR, LDI, LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
             ST, STR, STI:                     begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
             BR :                              begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
             JMP:                              begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
-=======
-            ADD: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
-            AND: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
-            NOT: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
-            LD : begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
-            LDR: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
-            LDI: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
-            LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
-            ST : begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
-            STR: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
-            STI: begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
-            BR : begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
-            JMP: begin exec_dr = 3'b0;          exec_nzp = 3'b111;                                   end 
->>>>>>> 980e303f5d76d02e622e4526be05a9f7b182abec
          endcase
 
          exec_Mdata                  =  exec_bypass2[1] ? val_2 : exec_vsr2;
