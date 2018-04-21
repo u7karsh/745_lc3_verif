@@ -28,7 +28,9 @@ class Driver extends Agent;
             repeat($random % `T_FETCH_MAX) @(posedge driverIf.clk);
             driverIf.complete_instr       = 1;
             driverIf.Instr_dout           = dInst.encodeInst();
-            $display("%t instout", $time);
+            `ifdef DEBUG_DRIVER
+               $display("%t instout", $time);
+            `endif
          end
          else
             stallCnt                     += 1;
@@ -44,7 +46,9 @@ class Driver extends Agent;
          // Modelling data delay
          repeat($random % `T_DATA_MAX) @(posedge driverIf.clk);
          driverIf.complete_data           = 1;
-         $display("%t dataout", $time);
+         `ifdef DEBUG_DRIVER
+            $display("%t dataout", $time);
+         `endif
 
          // Data memory read/write handling
          if( driverIf.Data_rd ) begin

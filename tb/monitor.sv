@@ -71,13 +71,17 @@ class Monitor extends Agent;
     * Controller globals
     */
    reg [1:0]  ctrl_memState;
+   reg [3:0]  ctrl_Imem_stash;
    reg [1:0]  ctrl_memState_N;
-   reg [2:0]  ctrl_enState_N;
-   reg [2:0]  ctrl_enState;
-   reg [1:0]  ctrl_fsm;
-   reg [1:0]  ctrl_nextFsm;
+   reg [1:0]  ctrl_enState_N;
+   reg [1:0]  ctrl_enState;
+   reg [1:0]  ctrl_stallEnState;
+   reg [1:0]  ctrl_stallEnState_N;
+   reg [1:0]  ctrl_brEnState;
+   reg [1:0]  ctrl_brEnState_N;
    reg        ctrl_complete_data;
    reg        ctrl_complete_instr;
+   reg        ctrl_decode_enable;
 
    //------------------------FETCH-------------
    function void fetch(); //{
@@ -365,7 +369,7 @@ class Monitor extends Agent;
 
             2'b11: begin check("WB", FATAL, 1, "W control 11 not required"); end
          endcase
-         `ifdef DEBUG_MEM
+         `ifdef DEBUG_WB
             $display("WB: PSR %0b ALUOUT %0b PCOUT %0b MEMOUT %0b W_CTRL %0b EXALU %0b EXPCOUT %0b EXMEM %0b", wb_psr, wb_aluout, wb_pcout, wb_memout, execIf.aluout, execIf.pcout, memIf.memout, wb_W_Control);
          `endif
     	
@@ -424,6 +428,7 @@ class Monitor extends Agent;
       logic        ctrl_brTaken;
       logic        ctrl_bpAlu1, ctrl_bpAlu2, ctrl_bpMem1, ctrl_bpMem2;
       logic [3:0]  ctrl_exec_opcode, ctrl_dec_opcode;    
+      logic        ctrl_Imem_br_jmp;
 
       string       header;
 
@@ -452,10 +457,15 @@ class Monitor extends Agent;
          ctrl_dst         = !(ctrl_storeBit && ctrl_brBit) ? ctrl_execIR[11:9] : 0;
          ctrl_sr1         = ctrl_decIR[8:6];
          ctrl_sr2         = ctrl_DSBit ? ctrl_decIR[11:9] : (!ctrl_decIR[5] ? ctrl_decIR[2:0] : 0);
+
+         ctrl_Imem_br_jmp = (ctrl_ImemOut[15:12] == BR) || (ctrl_ImemOut[15:12] == JMP);
+
          header           = $psprintf("[E: %s: D: %s]", Instruction::op2str(ctrl_exec_opcode), Instruction::op2str(ctrl_dec_opcode));
 
          //------------------------------- BYPASS LOGIC BEGIN -------------------
          //bypass ALU operation
+         //NOTE: initially ctrl_dec_opcode will have all 0's aka BR
+         //Following case won't be affected as branch is not used
          case(ctrl_dec_opcode)
             ADD, AND, NOT: begin //{ 
                if(ctrl_AluBit || (ctrl_exec_opcode == LEA)) begin //{ 
@@ -509,13 +519,10 @@ class Monitor extends Agent;
          //-------------------------- MEM STATE END ------------------------
 
          //---------------------- ENABLE SIGNALS BEGIN ---------------------
-         ctrl_brTaken         = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) ? (|(ctrl_NZP && ctrl_psr) ? 1 : 0) : 0;
+         ctrl_brTaken         = ctrl_Imem_br_jmp ? (|(ctrl_NZP & ctrl_psr) ? 1 : 0) : 0;
          ctrl_enUpPC          = ctrl_complete_instr;
 
          ctrl_enState         = ctrl_enState_N;
-         `ifdef DEBUG_CTRL
-            $display("\t enstate: %b", ctrl_enState);
-         `endif
          case(ctrl_enState)
             2'b00: begin //{
                ctrl_enFetch   = 1;
@@ -547,52 +554,81 @@ class Monitor extends Agent;
             end //}
          endcase
 
-         //ctrl_fsm = ctrl_nextFsm;
-         //case(ctrl_fsm)
-         //   2'b00: begin //{
-         //      ctrl_enFetch  = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 0 : 1;
-         //      ctrl_enDecode = 1;
-         //      ctrl_enExec   = 1;
-         //      ctrl_enWB     = 1; 
-         //      ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken ? 0 : 1; /*ctrl_complete_instr;*/
-         //      ctrl_nextFsm  = ((ctrl_ImemOut[15:12] == LD ) || (ctrl_ImemOut[15:12] == LDR) || 
-         //                       (ctrl_ImemOut[15:12] == LDI) || (ctrl_ImemOut[15:12] == STI) || 
-         //                       (ctrl_ImemOut[15:12] == ST ) || (ctrl_ImemOut[15:12] == STR) || 
-         //                       (ctrl_ImemOut[15:12] == BR ) || (ctrl_ImemOut[15:12] == JMP)) ? 2'b01 : 2'b00;
-         //   end //}
-         //   2'b01: begin //{
-         //      ctrl_enFetch  = 0;
-         //      ctrl_enDecode = 0;
-         //      ctrl_enExec   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken? 1 : 0;
-         //      ctrl_enWB     = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 1 : 0;
-         //      ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 1 : 0;
-         //      if ((ctrl_ImemOut[15:12] == LD) || (ctrl_ImemOut[15:12] == LDR))
-         //         ctrl_nextFsm = 2'b00;
-         //      else if ((ctrl_ImemOut[15:12] == LDI) || (ctrl_ImemOut[15:12] == STI) || ((ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken))
-         //         ctrl_nextFsm = 2'b11;
-         //      else if ((ctrl_ImemOut[15:12] == ST) || (ctrl_ImemOut[15:12] == STR))
-         //         ctrl_nextFsm = 2'b10;
-         //   end //}
-         //   2'b10: begin //{ 
-         //      ctrl_enFetch  = 1;
-         //      ctrl_enDecode = 1;
-         //      ctrl_enExec   = 1;
-         //      ctrl_enWB     = 0; 
-         //      ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP) && !ctrl_brTaken ? 0 : 1;
-         //      ctrl_nextFsm  = 2'b00;
-         //   end //}
-         //   2'b11: begin //{
-         //      ctrl_enFetch  = 0;
-         //      ctrl_enDecode = 0;
-         //      ctrl_enExec   = 0;
-         //      ctrl_enWB     = 0; 
-         //      ctrl_enUpPC   = (ctrl_ImemOut[15:12] == BR || ctrl_ImemOut[15:12] == JMP)&& !ctrl_brTaken ? 0 : 1;
-         //      ctrl_nextFsm  = (ctrl_ImemOut[15:12] == LDI) ? 2'b00 : (ctrl_ImemOut[15:12] == STI) ? 2'b10 : 2'b00;
-         //   end //}
-         //endcase
+         `ifdef DEBUG_CTRL
+            $display("BaseEnable  : F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
+         `endif
+
+         ctrl_stallEnState = ctrl_stallEnState_N;
+         case(ctrl_stallEnState)
+            2'b00: begin //{
+               if( ctrl_decode_enable ) begin //{
+                  case(ctrl_dec_opcode)
+                     LD, LDR, LDI,
+                     STI, ST, STR  : begin ctrl_stallEnState_N = 2'b01; ctrl_Imem_stash = ctrl_dec_opcode; end
+                  endcase
+               end //}
+            end //}
+
+            2'b01: begin //{
+               ctrl_enFetch         = 0;
+               ctrl_enUpPC          = 0;
+               ctrl_enDecode        = 0;
+               ctrl_enExec          = 0;
+               ctrl_enWB            = 0; 
+               case(ctrl_Imem_stash)
+                  LD, LDR          : ctrl_stallEnState_N = 2'b00;
+                  LDI, STI         : ctrl_stallEnState_N = 2'b11;
+                  ST, STR          : ctrl_stallEnState_N = 2'b10;
+               endcase
+            end //}
+
+            2'b10: begin //{ 
+               ctrl_enWB            = 0; 
+               ctrl_stallEnState_N  = 2'b00;
+            end //}
+
+            2'b11: begin //{
+               ctrl_enFetch         = 0;
+               ctrl_enUpPC          = 0;
+               ctrl_enDecode        = 0;
+               ctrl_enExec          = 0;
+               ctrl_enWB            = 0; 
+               ctrl_stallEnState_N  = (ctrl_Imem_stash == LDI) ? 2'b00 : (ctrl_Imem_stash == STI) ? 2'b10 : 2'b00;
+            end //}
+         endcase
 
          `ifdef DEBUG_CTRL
-            $display ("ct_state %0b, branch_taken %0b", ctrl_fsm, ctrl_brTaken); 
+            $display("IntermEnable: F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
+         `endif
+
+         ctrl_brEnState = ctrl_brEnState_N;
+         case(ctrl_brEnState)
+            2'b00: begin //{
+               case( ctrl_ImemOut[15:12] )
+                  BR, JMP: begin
+                     ctrl_brEnState_N = 2'b01;
+                  end
+               endcase
+            end //}
+            2'b01: begin ctrl_enFetch  = 0; ctrl_enUpPC = 0;                     ctrl_brEnState_N = 2'b10; end
+            2'b10: begin ctrl_enFetch  = 0; ctrl_enUpPC = 0; ctrl_enDecode  = 0; ctrl_brEnState_N = 2'b11; end
+            2'b11: begin ctrl_enFetch  = 0; ctrl_enUpPC =    ctrl_brTaken;       ctrl_enDecode    = 0;  
+                         ctrl_enExec   = 0; ctrl_enWB   = 0; ctrl_enState_N = 0; ctrl_brEnState_N = 2'b00; end
+         endcase
+
+         $display("complete_ins: %0b en_decode: %0b", ctrl_complete_instr, ctrl_enDecode);
+         // In general case, enable decode stays low until complete_instr goes high and instruction
+         // is ready to use
+         ctrl_enDecode                 = ctrl_complete_instr ? ctrl_enDecode : 0;
+
+         `ifdef DEBUG_CTRL
+            $display("FinalEnable : F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
+            $display("\tdrIf_complete_instr: %0b, enstate: %0b, stallState: %0b brState: %0b, Imem: %s, inst: %s, stash: %s", 
+            driverIf.complete_instr, ctrl_enState, ctrl_stallEnState,
+            ctrl_brEnState, Instruction::op2str(ctrl_ImemOut[15:12]), Instruction::op2str(ctrl_dec_opcode),
+            Instruction::op2str(ctrl_Imem_stash));
+            $display("%t ct_state %0b, branch_taken %0b", $time, ctrl_stallEnState, ctrl_brTaken); 
+            $display("\tbrTaken: %0x br_jmp: %0x NZP: %0b psr: %0b", ctrl_brTaken, ctrl_Imem_br_jmp, ctrl_NZP, ctrl_psr );
          `endif
 
          check("CTRLR", WARN, ctrl_bpAlu1 === ctrlrIf.bypass_alu_1, $psprintf("%s BYPASS ALU 1 unmatched! (%0x != %0x)", 
@@ -610,7 +646,7 @@ class Monitor extends Agent;
          check("CTRLR", WARN, ctrl_memState === ctrlrIf.mem_state, $psprintf("%s mem state unmatched! (%0x != %0x, %0x)", 
             header, ctrl_memState, ctrlrIf.mem_state, ctrl_memState_N));
 
-         check("CTRLR", WARN, ctrl_enFetch === ctrlrIf.enable_fetch, $psprintf("%s enable fetch state unmatched! (%0x != %0x)", 
+         check("CTRLR", WARN, ctrl_enFetch === ctrlrIf.enable_fetch, $psprintf("%s enable fetch unmatched! (%0x != %0x)", 
             header, ctrl_enFetch, ctrlrIf.enable_fetch));
 
          check("CTRLR", WARN, ctrl_enDecode === ctrlrIf.enable_decode, $psprintf("%s enable decode unmatched! (%0x != %0x)", 
@@ -622,12 +658,14 @@ class Monitor extends Agent;
          check("CTRLR", WARN, ctrl_enWB === ctrlrIf.enable_writeback, $psprintf("%s enable write back unmatched! (%0x != %0x)", 
             header, ctrl_enWB, ctrlrIf.enable_writeback));
 
-         //check("CTRLR", WARN, ctrl_enUpPC === ctrlrIf.enable_updatePC, $psprintf("[%s] enable update PC unmatched! (%0x != %0x)", 
-         //     Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_enUpPC, ctrlrIf.enable_updatePC));
-         //  
-         //check("CTRLR", WARN, ctrl_brTaken === ctrlrIf.br_taken, $psprintf("[%s] branch taken unmatched! (%0x != %0x)", 
-         //     Instruction::op2str(execIf.IR_Exec[15:12]),ctrl_brTaken, ctrlrIf.br_taken));
+         check("CTRLR", WARN, ctrl_brTaken === ctrlrIf.br_taken, $psprintf("%s branch taken unmatched! (%0x != %0x)", 
+            header, ctrl_brTaken, ctrlrIf.br_taken));
+
+         check("CTRLR", WARN, ctrl_enUpPC === ctrlrIf.enable_updatePC, $psprintf("%s enable update PC unmatched! (%0x != %0x)", 
+            header, ctrl_enUpPC, ctrlrIf.enable_updatePC));
+           
          //---------------------- ENABLE SIGNALS END ----------------------
+         ctrl_decode_enable = ctrl_enDecode;
       end //}
 
       // Pipeline regs
@@ -637,12 +675,15 @@ class Monitor extends Agent;
       if ( monIf.reset ) begin //{
          // Reset FSM regs
          //mem state
-         ctrl_memState     = 2'b11;
-         ctrl_memState_N   = ctrl_memState;
-         ctrl_enState      = 0;
-         ctrl_enState_N    = 0;
-         ctrl_fsm          = 0;
-         ctrl_nextFsm      = 0;
+         ctrl_memState       = 2'b11;
+         ctrl_memState_N     = ctrl_memState;
+         ctrl_enState        = 0;
+         ctrl_enState_N      = 0;
+         ctrl_stallEnState   = 0;
+         ctrl_stallEnState_N = 0;
+         ctrl_brEnState      = 0;
+         ctrl_brEnState_N    = 0;
+         ctrl_decode_enable  = 0;
       end //}
    endfunction //}
 

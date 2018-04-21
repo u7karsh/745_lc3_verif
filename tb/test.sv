@@ -17,7 +17,8 @@ class Test; //{
    // all tests. It doesn't have LD/SD and BR as mem warmup
    // is not done
    virtual function void sequenceInstr();
-      integer numTrans             = 8 + 25;
+      integer numTrans             = 8 + 100;
+      integer ctrl = 0;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
       for( int i = 0; i < 8; i++ ) begin
@@ -25,8 +26,13 @@ class Test; //{
          pushInst(instMemEntry);
       end
       for( int i = 0; i < numTrans - 8; i++ ) begin
-         if( instMemEntry.randomize() with { opcode inside {ADD, /*BR,*/ AND, NOT/*, LD, LDR, LDI, LEA, ST, STI, STR*/}; } ) begin
+         if( instMemEntry.randomize() with { opcode inside {ADD, BR, AND, NOT/*, LD, LDR, LDI, LEA, ST, STI, STR*/}; } ) begin
+            if( instMemEntry.opcode == BR ) begin
+               if( ctrl < 6 ) instMemEntry.opcode = ADD;
+               else ctrl = 0;
+            end
             pushInst(instMemEntry);
+            ctrl  += 1;
          end else begin
             $fatal(1, "Failed to randomize instMemEntry");
             eos(0);

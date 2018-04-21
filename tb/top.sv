@@ -1,10 +1,13 @@
 `define DEBUG
 `define STALL_THRESH   1000
 `define BASE_ADDR      16'h3000
-`define DYN_INST_CNT   1000000
+`define DYN_INST_CNT   100000
 `define LC3_PIPE_DEPTH 5
-`define DEBUG_EXEC
-//`define DEBUG_MEM
+//`define DEBUG_DRIVER
+//`define DEBUG_EXEC
+//`define DEBUG_FETCH
+//`define DEBUG_WB
+`define DEBUG_CTRL
 `define T_FETCH_MAX    0
 `define T_DATA_MAX     0
 //`define TOP_MONITOR
