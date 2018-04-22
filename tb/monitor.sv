@@ -599,7 +599,7 @@ class Monitor extends Agent;
                ctrl_enDecode        = 0;
                ctrl_enExec          = 0;
                ctrl_enWB            = 0; 
-               ctrl_stallEnState_N  = (ctrl_Imem_stash == LDI) ? 2'b00 : (ctrl_Imem_stash == STI) ? 2'b10 : 2'b00;
+               ctrl_stallEnState_N  = (ctrl_Imem_stash == LDI) ? 2'b00 : ( (ctrl_Imem_stash == STI) ? 2'b10 : 2'b00 );
             end //}
          endcase
 
@@ -627,6 +627,7 @@ class Monitor extends Agent;
          `ifdef DEBUG_CTRL
             $display("complete_ins: %0b en_decode: %0b", ctrl_complete_instr, ctrl_enDecode);
          `endif
+
          // In general case, enable decode stays low until complete_instr goes high and instruction
          // is ready to use
          ctrl_enDecode                 = ctrl_complete_instr ? ctrl_enDecode : 0;

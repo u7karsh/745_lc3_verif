@@ -20,7 +20,7 @@ class Driver extends Agent;
             dInst                    = getInstIndex(instMemIndex);
    
             // Read from instMemIndex memory
-            `ifdef DEBUG
+            `ifdef DEBUG_DRIVER
                printInstMemIndex( instMemIndex );
             `endif
             driverIf.complete_instr       = 0;
