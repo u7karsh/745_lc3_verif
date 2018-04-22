@@ -98,11 +98,17 @@ class Monitor extends Agent;
          check("FETCH", WARN, ctrlrIf.enable_fetch === fetchIf.instrmem_rd,
             $psprintf("instrmem_rd not matched (%0x != %0x)", ctrlrIf.enable_fetch, fetchIf.instrmem_rd) );
 
+         fetch_pc      = (ctrlrIf.enable_updatePC) ? ((ctrlrIf.br_taken) ? execIf.pcout : fetch_npc) : fetch_pc;
          `ifdef DEBUG_FETCH
             $display("%t [MON.fetch] pc: %0x, npc: %0x, instrmem_rd: %b", 
                $time, fetchIf.pc, fetchIf.npc, fetchIf.instrmem_rd);
+		      $display("debugging ctrlrIf.br_taken::  %d",ctrlrIf.br_taken );
+		      $display("debugging execIf.pcout::  %d",execIf.pcout );
+		      
+		      $display("debugging enable_updatePC ::  %d",ctrlrIf.enable_updatePC);
+		      $display("debugging PC2 ::  %d",fetch_pc);
+		      $display("debugging NPC ::  %d",fetch_pc - `BASE_ADDR );
          `endif
-         fetch_pc      = (ctrlrIf.enable_updatePC) ? ((ctrlrIf.br_taken) ? execIf.pcout : fetch_npc) : fetch_pc;
       end//}
 
       if (monIf.reset)begin //{
@@ -189,7 +195,7 @@ class Monitor extends Agent;
          endcase
 
          case(exec_bypass2)
-            2'b00: val_2 = exec_Ectrl[0] ? exec_vsr2 : {{11{exec_IR[4]}}, exec_IR[4:0]};
+            2'b00: val_2 = exec_Ectrl[0] ? exec_vsr2 : {{11{exec_IR[4]}}, exec_IR[4:0]};		//immediate operation
             2'b01: val_2 = memIf.memout;
             2'b10: val_2 = exec_aluout;
          endcase
@@ -198,9 +204,9 @@ class Monitor extends Agent;
          aluin2          = val_2;
 
          case(exec_Ectrl[3:2])
-            2'b00: begin pcout = {{5{exec_IR[10]}}, exec_IR[10:0]} + (exec_Ectrl[1] ? exec_npc : val_1); end
-            2'b01: begin pcout = {{7{exec_IR[8]}} , exec_IR[8:0]}  + (exec_Ectrl[1] ? exec_npc : val_1); end
-            2'b10: begin pcout = {{10{exec_IR[5]}}, exec_IR[5:0]}  + (exec_Ectrl[1] ? exec_npc : val_1); end
+            2'b00: begin pcout = {{5{exec_IR[10]}}, exec_IR[10:0]} + (exec_Ectrl[1] ? exec_npc     : val_1); end //offset 11
+            2'b01: begin pcout = {{7{exec_IR[8]}} , exec_IR[8:0]}  + (exec_Ectrl[1] ? exec_npc - 1 : val_1); end //offset 9
+            2'b10: begin pcout = {{10{exec_IR[5]}}, exec_IR[5:0]}  + (exec_Ectrl[1] ? exec_npc     : val_1); end //offset 6
             2'b11: begin pcout = 16'b0; end
          endcase
 
@@ -214,8 +220,8 @@ class Monitor extends Agent;
 
          // For ALU, short alout with pcout (not documented)
          case(exec_IR[15:12])
-            ADD, AND, NOT, LD,
-            LDR, LDI, LEA:      begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            ADD, AND, NOT:      begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            LDR, LDI, LEA:      begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
             ST, STR, STI:       begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
             BR :                begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
             JMP:                begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
