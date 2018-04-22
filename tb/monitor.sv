@@ -67,6 +67,10 @@ class Monitor extends Agent;
    //Register File   
    reg [15:0] regFile[0:7];
 
+   //for coverage
+   reg [15:0] aluin1, aluin2;
+   reg [2:0]  PSR;
+
    /*
     * Controller globals
     */
@@ -189,6 +193,9 @@ class Monitor extends Agent;
             2'b01: val_2 = memIf.memout;
             2'b10: val_2 = exec_aluout;
          endcase
+         
+         aluin1          = val_1;
+         aluin2          = val_2;
 
          case(exec_Ectrl[3:2])
             2'b00: begin pcout = {{5{exec_IR[10]}}, exec_IR[10:0]} + (exec_Ectrl[1] ? exec_npc : val_1); end
@@ -379,6 +386,7 @@ class Monitor extends Agent;
                regFile[i] = 16'bx;
          end //}
 
+         PSR             = wb_psr;
          check("WB", WARN, wb_psr === wbIf.psr, $psprintf("[%s] psr unmatched! (%0b != %0b)", 
             Instruction::op2str(exec_IR[15:12]), wb_psr, wbIf.psr));
 

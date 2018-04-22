@@ -48,7 +48,7 @@ class Agent;
       if(!cond) begin
          fail_assert[stage]   += 1;
          if( severity == FATAL ) begin
-            $fatal(1, "\n%t [CHECKER.%s] %s", $time, stage, A);
+            $error(1, "\n%t [CHECKER.%s] %s", $time, stage, A);
             void'(top.test.eos());
          end
          else

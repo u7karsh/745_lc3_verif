@@ -12,6 +12,10 @@ class Instruction; //{
    rand reg [2:0] baseR;  
    rand bit       N, Z, P;
 
+   constraint nzp {
+      {N,Z,P} inside {[3'b001:3'b111]};
+   };
+
    function new();
       this.opcode    = UNDEF;
    endfunction
