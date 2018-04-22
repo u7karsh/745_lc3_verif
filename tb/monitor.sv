@@ -43,6 +43,7 @@ class Monitor extends Agent;
    reg [1:0]  exec_Wctrl;
    reg        exec_Mctrl;
    reg [15:0] exec_Mdata;
+   reg        exec_enable_execute;
    reg        exec_init;
 
    /*
@@ -227,7 +228,9 @@ class Monitor extends Agent;
             JMP:                begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
          endcase
 
-         exec_Mdata                  =  exec_bypass2[1] ? val_2 : exec_vsr2;
+         exec_Mdata                  = exec_bypass2[1] ? val_2 : exec_vsr2;
+         // When enable_execute is low, NZP goes to 0 synchronously
+         exec_nzp                    = exec_enable_execute ? exec_nzp : 0;
 
          if( exec_init ) begin
             exec_Mdata  = 0;
@@ -238,7 +241,7 @@ class Monitor extends Agent;
          end
 
          `ifdef DEBUG_EXEC
-            $display("%t EXEC: IR: 0x%0x bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, pcout, execIf.M_Data);
+            $display("%t EXEC: IR: 0x%0x(%0b) bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, pcout, execIf.M_Data);
          `endif
 
          check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x) %0x %0x %0x %0x", 
@@ -280,6 +283,8 @@ class Monitor extends Agent;
             exec_aluout     = aluout;
          end
       end //}
+      
+      exec_enable_execute   = ctrlrIf.enable_execute;
 
       if( monIf.reset ) begin
          exec_Ectrl  = 0;
@@ -350,40 +355,21 @@ class Monitor extends Agent;
 
       if(!monIf.reset) begin//{
          case(wb_W_Control)
-            2'b00: begin //{
-               regFile[wb_dr_in] = wb_aluout; 
-               casex({wb_aluout[15],|wb_aluout})
-                  2'b1x:   begin wb_psr  = 3'b100; end
-                  2'b01:   begin wb_psr  = 3'b001; end
-                  2'b00:   begin wb_psr  = 3'b010; end
-                  default: begin check("WB", FATAL, 1, "impossible aluout value"); end
-               endcase
-            end //}
-
-            2'b01: begin //{ 
-               regFile[wb_dr_in] = wb_memout;
-               casex({wb_memout[15],|wb_memout})
-                  2'b1x:   begin wb_psr  = 3'b100; end
-                  2'b01:   begin wb_psr  = 3'b001; end
-                  2'b00:   begin wb_psr  = 3'b010; end
-                  default: begin check("WB", FATAL, 1, "impossible memout value"); end
-               endcase
-            end//}
-
-            2'b10: begin //{
-               regFile[wb_dr_in] = wb_pcout; 
-               casex({wb_pcout[15],|wb_pcout})
-                  2'b1x:   begin wb_psr  = 3'b100; end
-                  2'b01:   begin wb_psr  = 3'b001; end
-                  2'b00:   begin wb_psr  = 3'b010; end
-                  default: begin check("WB", FATAL, 1, "impossible pcout value"); end
-               endcase
-            end//}
-
+            2'b00: regFile[wb_dr_in] = wb_aluout; 
+            2'b01: regFile[wb_dr_in] = wb_memout;
+            2'b10: regFile[wb_dr_in] = wb_pcout; 
             2'b11: begin check("WB", FATAL, 1, "W control 11 not required"); end
          endcase
+
+         case({regFile[wb_dr_in][15],|regFile[wb_dr_in]})
+            2'b11: wb_psr  = 3'b100;
+            2'b01: wb_psr  = 3'b001;
+            2'b00: wb_psr  = 3'b010;
+            2'b10: begin check("WB", FATAL, 1, "impossible aluout value"); end
+         endcase
+
          `ifdef DEBUG_WB
-            $display("WB: PSR %0b ALUOUT %0b PCOUT %0b MEMOUT %0b W_CTRL %0b EXALU %0b EXPCOUT %0b EXMEM %0b", wb_psr, wb_aluout, wb_pcout, wb_memout, execIf.aluout, execIf.pcout, memIf.memout, wb_W_Control);
+            $display("WrB: PSR %0b ALUOUT %0b PCOUT %0b MEMOUT %0b EXEALU %0b EXPCOUT %0b EXMEM %0b wb_wcontrol: %b REGFILE %0b", wb_psr, wb_aluout, wb_pcout, wb_memout, execIf.aluout, execIf.pcout, memIf.memout, wb_W_Control, regFile[wb_dr_in]);
          `endif
     	
          if( wb_init ) begin //{
@@ -630,7 +616,9 @@ class Monitor extends Agent;
                          ctrl_enExec   = 0; ctrl_enWB   = 0; ctrl_enState_N = 0; ctrl_brEnState_N = 2'b00; end
          endcase
 
-         $display("complete_ins: %0b en_decode: %0b", ctrl_complete_instr, ctrl_enDecode);
+         `ifdef DEBUG_CTRL
+            $display("complete_ins: %0b en_decode: %0b", ctrl_complete_instr, ctrl_enDecode);
+         `endif
          // In general case, enable decode stays low until complete_instr goes high and instruction
          // is ready to use
          ctrl_enDecode                 = ctrl_complete_instr ? ctrl_enDecode : 0;

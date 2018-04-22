@@ -14,7 +14,7 @@ class Driver extends Agent;
             stallCnt                 = 0;
             dynInstCount            += 1;
             instMemIndex             = driverIf.pc - `BASE_ADDR;
-            if( instMemIndex >= getInstMemSize() || dynInstCount >= `DYN_INST_CNT )
+            if( instMemIndex < 0 || instMemIndex >= getInstMemSize() || dynInstCount >= `DYN_INST_CNT )
                break;
 
             dInst                    = getInstIndex(instMemIndex);
