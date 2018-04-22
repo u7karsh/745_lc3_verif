@@ -17,7 +17,7 @@ class Test; //{
    // all tests. It doesn't have LD/SD and BR as mem warmup
    // is not done
    virtual function void sequenceInstr();
-      integer numTrans             = 8 + 100;
+      integer numTrans             = 8 + 700;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
       for( int i = 0; i < 8; i++ ) begin

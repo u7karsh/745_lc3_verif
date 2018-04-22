@@ -726,7 +726,7 @@ class Monitor extends Agent;
 
          if( !monIf.reset ) begin
             //--------------------- EXEC ---------------------
-            check("A_EXEC", WARN, exec_IR[8:6] === sr1, $psprintf("sr1 unmatched! (%0x != %0x)", exec_IR[8:6], sr1));
+            check("A_EXEC", WARN, exec_IR[8:6] === sr1, $psprintf("%s sr1 unmatched! (%0x != %0x) IR: %0b", Instruction::op2str(exec_IR[15:12]), exec_IR[8:6], sr1, exec_IR));
 
             case(exec_IR[15:12])
                ADD: begin exec_sr2 = exec_IR[02:0]; end
@@ -743,7 +743,7 @@ class Monitor extends Agent;
                JMP: begin exec_sr2 =             0; end 
             endcase
 
-            check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("sr2 unmatched! (%0x != %0x)", exec_sr2, sr2));
+            check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("%s sr2 unmatched! (%0x != %0x) IR: %0b", Instruction::op2str(exec_IR[15:12]), exec_sr2, sr2, exec_IR));
             // FIXME
             //check("A_EXEC", WARN, ctrl_enFetch === driverIf.instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
             //      ctrl_enFetch, driverIf.instrmem_rd));
