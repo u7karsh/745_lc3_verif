@@ -17,7 +17,6 @@ class BaseStoreLoadTest extends Test;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
 
-
       // Warmup 0-100 addresses
       // Between all stores, initialize all regs to 0
       // AND R0, R0, #0
@@ -35,9 +34,7 @@ class BaseStoreLoadTest extends Test;
          // Basic instructions
          opcode_t opList[]        = {ADD, AND, NOT};
          reg [8:0] startAddr      = 0;
-         //( (position >= 512) ? 511 : position );
          reg [8:0] endAddr        = numTrans - position - 1;
-         //$display("%0x(%0d) %0x(%0d)", startAddr, startAddr, endAddr, endAddr);
 
          if( ctrl > `LC3_PIPE_DEPTH ) begin
             integer s       = opList.size();
@@ -46,7 +43,7 @@ class BaseStoreLoadTest extends Test;
             opList[s+1]     = JMP;
          end
 
-         if( mem > `LC3_PIPE_DEPTH ) begin
+         if( ctrl > `LC3_PIPE_DEPTH ) begin
             integer s       = opList.size();
             opList          = new[s + 7](opList);
             opList[s]       = LD;
@@ -63,12 +60,11 @@ class BaseStoreLoadTest extends Test;
                pcOffset6 inside { [startAddr:endAddr] };
                baseR      ==    0;
             } ) begin
-            if( instMemEntry.isCtrl() ) ctrl = 0;
-            if( instMemEntry.isMem()  ) mem  = 0;
+            if( instMemEntry.isCtrl() || instMemEntry.isMem()) ctrl = 0;
+            //if( instMemEntry.isMem()  ) mem  = 0;
             pushInst(instMemEntry);
             ctrl  += 1;
             mem   += 1;
-            //$display("%0d", instMemEntry.pcOffset6 + i);
          end else begin
             $fatal(1, "Failed to randomize instMemEntry");
             eos(0);

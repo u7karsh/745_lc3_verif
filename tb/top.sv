@@ -11,7 +11,7 @@
 `define T_FETCH_MAX    0
 `define T_DATA_MAX     0
 //`define TOP_MONITOR
-`define RUN_FIXME
+//`define RUN_FIXME
 
 `include "types.sv"
 `include "interface.sv"

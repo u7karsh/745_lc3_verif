@@ -566,7 +566,7 @@ class Monitor extends Agent;
                   endcase
                   // FIXME: Just why?
                   `ifdef RUN_FIXME
-                     if( ctrl_dec_opcode == LDI ) begin
+                     if( ctrl_dec_opcode == LDI ) begin //|| ctrl_dec_opcode == LDR ) begin
                         ctrl_enFetch   = 0;
                         ctrl_enUpPC    = 0;
                      end
@@ -711,39 +711,49 @@ class Monitor extends Agent;
    
    task run_async();
       logic [2:0]  sr1, sr2;
-      logic [2:0]  exec_sr2;
+      logic [2:0]  exec_sr1, exec_sr2;
       logic [16:0] memout;
+      logic [16:0] async_exec_IR;
       logic [16:0] vsr1, vsr2;
+      logic        verif_sr1 = 0, verif_sr2 = 0;
       forever begin
          // Sample and hold DUT signals
-         sr1    = execIf.sr1;
-         sr2    = execIf.sr2;
-         memout = memIf.memout;
-         vsr1   = wbIf.VSR1;
-         vsr2   = wbIf.VSR2;
+         memout        = memIf.memout;
+         vsr1          = wbIf.VSR1;
+         vsr2          = wbIf.VSR2;
+         sr1           = execIf.sr1;
+         sr2           = execIf.sr2;
          // Sensitize on all DUT async signals
-         @(execIf.sr1 or execIf.sr2 or memIf.memout or wbIf.VSR1 or wbIf.VSR2 or driverIf.instrmem_rd);
+         @(execIf.sr1 or execIf.sr2 or execIf.IR_Exec or memIf.memout or wbIf.VSR1 or wbIf.VSR2);
+         async_exec_IR = execIf.IR_Exec;
 
          if( !monIf.reset ) begin
             //--------------------- EXEC ---------------------
-            check("A_EXEC", WARN, exec_IR[8:6] === sr1, $psprintf("%s sr1 unmatched! (%0x != %0x) IR: %0b", Instruction::op2str(exec_IR[15:12]), exec_IR[8:6], sr1, exec_IR));
+            exec_sr1               = async_exec_IR[8:6];
 
             case(exec_IR[15:12])
-               ADD: begin exec_sr2 = exec_IR[02:0]; end
-               AND: begin exec_sr2 = exec_IR[02:0]; end
-               NOT: begin exec_sr2 = exec_IR[02:0]; end
-               LD : begin exec_sr2 =             0; end
-               LDR: begin exec_sr2 =             0; end
-               LDI: begin exec_sr2 =             0; end
-               LEA: begin exec_sr2 =             0; end
-               ST : begin exec_sr2 = exec_IR[11:9]; end
-               STR: begin exec_sr2 = exec_IR[11:9]; end
-               STI: begin exec_sr2 = exec_IR[11:9]; end
-               BR : begin exec_sr2 =             0; end
-               JMP: begin exec_sr2 =             0; end 
+               ADD: begin exec_sr2 = async_exec_IR[02:0]; verif_sr1 = 1; verif_sr2 = !async_exec_IR[5]; end
+               AND: begin exec_sr2 = async_exec_IR[02:0]; verif_sr1 = 1; verif_sr2 = !async_exec_IR[5]; end
+               NOT: begin exec_sr2 = async_exec_IR[02:0]; verif_sr1 = 1; verif_sr2 = !async_exec_IR[5]; end
+               LD : begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
+               LDR: begin exec_sr2 =                   0; verif_sr1 = 1; verif_sr2 = 0; end
+               LDI: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
+               LEA: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
+               ST : begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 0; end
+               STR: begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 1; end
+               STI: begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 0; end
+               BR : begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
+               JMP: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end 
             endcase
 
-            check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("%s sr2 unmatched! (%0x != %0x) IR: %0b", Instruction::op2str(exec_IR[15:12]), exec_sr2, sr2, exec_IR));
+            if( verif_sr1 )
+               check("A_EXEC", WARN, exec_sr1 === sr1, $psprintf("%s sr1 unmatched! (%0x != %0x) IR: %0b",
+               Instruction::op2str(async_exec_IR[15:12]), exec_sr1, sr1, async_exec_IR));
+
+            if( verif_sr2 )
+               check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("%s sr2 unmatched! (%0x != %0x) IR: %0b", 
+               Instruction::op2str(async_exec_IR[15:12]), exec_sr2, sr2, async_exec_IR));
+
             // FIXME
             //check("A_EXEC", WARN, ctrl_enFetch === driverIf.instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
             //      ctrl_enFetch, driverIf.instrmem_rd));
