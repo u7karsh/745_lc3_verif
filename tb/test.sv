@@ -141,7 +141,9 @@ class Test; //{
    task run();
       // Sequence instructions
       sequenceInstr();
-      //displayInstr();
+      `ifdef DEBUG_TEST
+         displayInstr();
+      `endif
 
       $display("--------------- Running Test: %s -------------", name);
       env.run();

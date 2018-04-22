@@ -4,10 +4,11 @@
 `define DYN_INST_CNT   100000
 `define LC3_PIPE_DEPTH 6
 //`define DEBUG_DRIVER
-//`define DEBUG_EXEC
+`define DEBUG_EXEC
 //`define DEBUG_FETCH
 //`define DEBUG_WB
 //`define DEBUG_CTRL
+//`define DEBUG_TEST
 `define T_FETCH_MAX    0
 `define T_DATA_MAX     0
 //`define TOP_MONITOR

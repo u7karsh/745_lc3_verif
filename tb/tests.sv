@@ -60,8 +60,8 @@ class BaseStoreLoadTest extends Test;
                pcOffset6 inside { [startAddr:endAddr] };
                baseR      ==    0;
             } ) begin
-            if( instMemEntry.isCtrl() || instMemEntry.isMem()) ctrl = 0;
-            //if( instMemEntry.isMem()  ) mem  = 0;
+            if( instMemEntry.isCtrl() ) ctrl = 0;
+            if( instMemEntry.isMem()  ) ctrl = 0;
             pushInst(instMemEntry);
             ctrl  += 1;
             mem   += 1;

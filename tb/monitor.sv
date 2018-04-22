@@ -87,6 +87,7 @@ class Monitor extends Agent;
    reg        ctrl_complete_data;
    reg        ctrl_complete_instr;
    reg        ctrl_decode_enable;
+   reg        ctrl_fetch_enable;
    reg        ctrl_enUpPC, ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB;
 
    //------------------------FETCH-------------
@@ -226,7 +227,7 @@ class Monitor extends Agent;
             LD, LDR, LDI, LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
             ST, STR, STI:      begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
             BR :               begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
-            JMP:               begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
+            JMP:               begin exec_dr = 3'b0;          exec_nzp = 3'b111;        pcout  = aluout; end 
          endcase
 
          exec_Mdata                  = exec_bypass2[1] ? val_2 : exec_vsr2;
@@ -607,14 +608,22 @@ class Monitor extends Agent;
          `endif
 
          // To enable mix of control and memory in the pipeline
-         ctrl_brEnState = |ctrl_stallEnState_N ? ctrl_brEnState : ctrl_brEnState_N;
+         ctrl_brEnState = |ctrl_stallEnState ? ctrl_brEnState : ctrl_brEnState_N;
+         //if( |ctrl_stallEnState ) begin
+         //   if( ctrl_brEnState_N  <= 2'b01 )
+         //      ctrl_brEnState = ctrl_brEnState_N;
+         //end else
+         //   ctrl_brEnState = ctrl_brEnState_N;
+
          case(ctrl_brEnState)
             2'b00: begin //{
-               case( ctrl_ImemOut[15:12] )
-                  BR, JMP: begin
-                     ctrl_brEnState_N = 2'b01;
-                  end
-               endcase
+               if( ctrl_fetch_enable ) begin
+                  case( ctrl_ImemOut[15:12] )
+                     BR, JMP: begin
+                        ctrl_brEnState_N = 2'b01;
+                     end
+                  endcase
+               end
             end //}
             2'b01: begin ctrl_enFetch  = 0; ctrl_enUpPC = 0;                     ctrl_brEnState_N = 2'b10; end
             2'b10: begin ctrl_enFetch  = 0; ctrl_enUpPC = 0; ctrl_enDecode  = 0; ctrl_brEnState_N = 2'b11; end
@@ -674,6 +683,7 @@ class Monitor extends Agent;
            
          //---------------------- ENABLE SIGNALS END ----------------------
          ctrl_decode_enable = ctrl_enDecode;
+         ctrl_fetch_enable  = ctrl_enFetch;
       end //}
 
       // Pipeline regs
@@ -692,39 +702,21 @@ class Monitor extends Agent;
          ctrl_brEnState      = 0;
          ctrl_brEnState_N    = 0;
          ctrl_decode_enable  = 0;
+         ctrl_fetch_enable   = 0;
       end //}
    endfunction //}
 
-
-   function new( virtual Lc3_mon_if monIf, virtual Lc3_dr_if driverIf ); //{
-      super.new();
-      this.monIf        = monIf;
-      this.driverIf     = driverIf;
-      this.fetchIf      = monIf.FETCH;
-      this.decodeIf     = monIf.DECODE;
-      this.execIf       = monIf.EXECUTE;
-      this.wbIf         = monIf.WB;
-      this.memIf        = monIf.MEM;
-      this.ctrlrIf      = monIf.CTRLR;
-      this.currentTrans = new;
-   endfunction //}
-   
-   task run_async();
+   task async_exec();
       logic [2:0]  sr1, sr2;
       logic [2:0]  exec_sr1, exec_sr2;
-      logic [16:0] memout;
       logic [16:0] async_exec_IR;
-      logic [16:0] vsr1, vsr2;
       logic        verif_sr1 = 0, verif_sr2 = 0;
       forever begin
          // Sample and hold DUT signals
-         memout        = memIf.memout;
-         vsr1          = wbIf.VSR1;
-         vsr2          = wbIf.VSR2;
          sr1           = execIf.sr1;
          sr2           = execIf.sr2;
          // Sensitize on all DUT async signals
-         @(execIf.sr1 or execIf.sr2 or execIf.IR_Exec or memIf.memout or wbIf.VSR1 or wbIf.VSR2);
+         @(execIf.sr1 or execIf.sr2);
          async_exec_IR = execIf.IR_Exec;
 
          if( !monIf.reset ) begin
@@ -746,6 +738,10 @@ class Monitor extends Agent;
                JMP: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end 
             endcase
 
+            // FIXME
+            //check("A_EXEC", WARN, ctrl_enFetch === driverIf.instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
+            //      ctrl_enFetch, driverIf.instrmem_rd));
+
             if( verif_sr1 )
                check("A_EXEC", WARN, exec_sr1 === sr1, $psprintf("%s sr1 unmatched! (%0x != %0x) IR: %0b",
                Instruction::op2str(async_exec_IR[15:12]), exec_sr1, sr1, async_exec_IR));
@@ -753,15 +749,39 @@ class Monitor extends Agent;
             if( verif_sr2 )
                check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("%s sr2 unmatched! (%0x != %0x) IR: %0b", 
                Instruction::op2str(async_exec_IR[15:12]), exec_sr2, sr2, async_exec_IR));
+         end
 
-            // FIXME
-            //check("A_EXEC", WARN, ctrl_enFetch === driverIf.instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
-            //      ctrl_enFetch, driverIf.instrmem_rd));
+      end
+   endtask
 
+   task async_mem();
+      logic [16:0] memout;
+      forever begin
+         // Sample and hold DUT signals
+         memout        = memIf.memout;
+         // Sensitize on all DUT async signals
+         @(memIf.memout);
+
+         if( !monIf.reset ) begin
             //--------------------- MEM ---------------------
             check("A_MEM", WARN, mem_Dout === memout, $psprintf("memout unmatched! (%0x != %0x)", mem_Dout, memout));
+         end
+      end
+   endtask
 
-            //---------------------- WB ---------------------
+   task async_wb();
+      logic [2:0]  sr1, sr2;
+      logic [16:0] vsr1, vsr2;
+      forever begin
+         // Sample and hold DUT signals
+         sr1           = execIf.sr1;
+         sr2           = execIf.sr2;
+         vsr1          = wbIf.VSR1;
+         vsr2          = wbIf.VSR2;
+         // Sensitize on all DUT async signals
+         @(wbIf.VSR1 or wbIf.VSR2 or execIf.sr1 or execIf.sr2);
+
+         if( !monIf.reset ) begin
             // regFile is updated by wb sync function at the same clock. Add timestep delay to remove that hazard
             //TODO:
             #1;
@@ -770,6 +790,14 @@ class Monitor extends Agent;
          end
 
       end
+   endtask
+
+   task run_async();
+      fork
+         async_exec();
+         async_mem();
+         async_wb();
+      join
    endtask
 
    task run_sync();
@@ -790,5 +818,18 @@ class Monitor extends Agent;
          run_async();
       join
    endtask
+
+   function new( virtual Lc3_mon_if monIf, virtual Lc3_dr_if driverIf ); //{
+      super.new();
+      this.monIf        = monIf;
+      this.driverIf     = driverIf;
+      this.fetchIf      = monIf.FETCH;
+      this.decodeIf     = monIf.DECODE;
+      this.execIf       = monIf.EXECUTE;
+      this.wbIf         = monIf.WB;
+      this.memIf        = monIf.MEM;
+      this.ctrlrIf      = monIf.CTRLR;
+      this.currentTrans = new;
+   endfunction //}
 
 endclass
