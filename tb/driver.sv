@@ -53,7 +53,13 @@ class Driver extends Agent;
          // Data memory read/write handling
          if( driverIf.Data_rd ) begin
             driverIf.Data_dout            = readDataMem(driverIf.Data_addr);
-         end else begin
+            `ifdef DEBUG_DRIVER
+               $display("memread : 0x%0x -> %x", driverIf.Data_addr, driverIf.Data_dout);
+            `endif
+         end else if( driverIf.Data_rd == 0 && driverIf.Data_addr !== 16'bx ) begin //&& driverIf.Data_din != 16'bx ) begin
+            `ifdef DEBUG_DRIVER
+               $display("memwrite: 0x%0x -> %x", driverIf.Data_addr, driverIf.Data_din);
+            `endif
             writeDataMem( driverIf.Data_addr, driverIf.Data_din );
          end
 
@@ -68,6 +74,7 @@ class Driver extends Agent;
       driverIf.complete_instr = 0;
       driverIf.complete_data  = 0;
       driverIf.Instr_dout     = getInstIndex(0).encodeInst();
+      driverIf.Data_dout      = 0;
       repeat(2) @(posedge driverIf.clk);
       driverIf.reset          = 0;
    

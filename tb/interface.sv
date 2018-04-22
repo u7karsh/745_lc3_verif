@@ -1,11 +1,11 @@
 //interface Lc3_dr_if(clk, reset); 
 interface Lc3_dr_if(input bit clk);
-   logic        reset;
-   logic        complete_instr, complete_data;
-   logic [15:0] pc, Data_addr;
-   logic        instrmem_rd, Data_rd;
-   logic [15:0] Instr_dout, Data_dout;
-   logic [15:0] Data_din;
+   reg        reset;
+   reg        complete_instr, complete_data;
+   reg [15:0] pc, Data_addr;
+   reg        instrmem_rd, Data_rd;
+   reg [15:0] Instr_dout, Data_dout;
+   reg [15:0] Data_din;
 endinterface
 
 interface Lc3_mon_if( input logic        clk,
@@ -48,7 +48,7 @@ interface Lc3_mon_if( input logic        clk,
    modport DECODE(output IR, E_Control, npc_out, Mem_Control, W_Control);
    modport EXECUTE(output aluout, W_Control_out, Mem_Control_out, M_Data, dr, sr1, sr2, NZP, IR_Exec, pcout);
    modport WB(output psr, VSR1, VSR2);
-   modport MEM(output Data_addr, Data_rd, Data_din, memout, input Data_dout);
+   modport MEM(output Data_addr, Data_rd, Data_din, memout, Data_dout);
    modport CTRLR(output enable_updatePC, enable_fetch, enable_decode, enable_execute, enable_writeback, 
                    br_taken, bypass_alu_1, bypass_alu_2, bypass_mem_1, bypass_mem_2, mem_state, Instr_dout);
 endinterface

@@ -87,6 +87,7 @@ class Monitor extends Agent;
    reg        ctrl_complete_data;
    reg        ctrl_complete_instr;
    reg        ctrl_decode_enable;
+   reg        ctrl_enUpPC, ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB;
 
    //------------------------FETCH-------------
    function void fetch(); //{
@@ -221,11 +222,11 @@ class Monitor extends Agent;
 
          // For ALU, short alout with pcout (not documented)
          case(exec_IR[15:12])
-            ADD, AND, NOT:      begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
-            LDR, LDI, LEA:      begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
-            ST, STR, STI:       begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
-            BR :                begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
-            JMP:                begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
+            ADD, AND, NOT:     begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        pcout  = aluout; end
+            LD, LDR, LDI, LEA: begin exec_dr = exec_IR[11:9]; exec_nzp = 3'b000;        aluout = pcout;  end
+            ST, STR, STI:      begin exec_dr = 3'b0;          exec_nzp = 3'b000;        aluout = pcout;  end
+            BR :               begin exec_dr = 3'b0;          exec_nzp = exec_IR[11:9]; aluout = pcout;  end
+            JMP:               begin exec_dr = 3'b0;          exec_nzp = 3'b111;                         end 
          endcase
 
          exec_Mdata                  = exec_bypass2[1] ? val_2 : exec_vsr2;
@@ -351,8 +352,6 @@ class Monitor extends Agent;
       logic [2:0]  wb_psr;
       logic [15:0] wb_VSR1, wb_VSR2;
 
-      wb_W_Control = execIf.W_Control_out;
-
       if(!monIf.reset) begin//{
          case(wb_W_Control)
             2'b00: regFile[wb_dr_in] = wb_aluout; 
@@ -424,7 +423,6 @@ class Monitor extends Agent;
       logic [2:0]  ctrl_NZP;
       logic [15:0] ctrl_ImemOut;
 
-      logic        ctrl_enUpPC, ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB;
       logic        ctrl_brTaken;
       logic        ctrl_bpAlu1, ctrl_bpAlu2, ctrl_bpMem1, ctrl_bpMem2;
       logic [3:0]  ctrl_exec_opcode, ctrl_dec_opcode;    
@@ -566,6 +564,13 @@ class Monitor extends Agent;
                      LD, LDR, LDI,
                      STI, ST, STR  : begin ctrl_stallEnState_N = 2'b01; ctrl_Imem_stash = ctrl_dec_opcode; end
                   endcase
+                  // FIXME: Just why?
+                  `ifdef RUN_FIXME
+                     if( ctrl_dec_opcode == LDI ) begin
+                        ctrl_enFetch   = 0;
+                        ctrl_enUpPC    = 0;
+                     end
+                  `endif
                end //}
             end //}
 
@@ -601,7 +606,8 @@ class Monitor extends Agent;
             $display("IntermEnable: F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
          `endif
 
-         ctrl_brEnState = ctrl_brEnState_N;
+         // To enable mix of control and memory in the pipeline
+         ctrl_brEnState = |ctrl_stallEnState_N ? ctrl_brEnState : ctrl_brEnState_N;
          case(ctrl_brEnState)
             2'b00: begin //{
                case( ctrl_ImemOut[15:12] )
@@ -625,7 +631,7 @@ class Monitor extends Agent;
 
          `ifdef DEBUG_CTRL
             $display("FinalEnable : F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
-            $display("\tdrIf_complete_instr: %0b, enstate: %0b, stallState: %0b brState: %0b, Imem: %s, inst: %s, stash: %s", 
+            $display("\tdrIf_complete_instr: %0b, enstate: %0b, stallState: %0b brState: %0b, Imem: %s, dec_inst: %s, stash: %s", 
             driverIf.complete_instr, ctrl_enState, ctrl_stallEnState,
             ctrl_brEnState, Instruction::op2str(ctrl_ImemOut[15:12]), Instruction::op2str(ctrl_dec_opcode),
             Instruction::op2str(ctrl_Imem_stash));
@@ -716,7 +722,7 @@ class Monitor extends Agent;
          vsr1   = wbIf.VSR1;
          vsr2   = wbIf.VSR2;
          // Sensitize on all DUT async signals
-         @(execIf.sr1 or execIf.sr2 or memIf.memout or wbIf.VSR1 or wbIf.VSR2);
+         @(execIf.sr1 or execIf.sr2 or memIf.memout or wbIf.VSR1 or wbIf.VSR2 or driverIf.instrmem_rd);
 
          if( !monIf.reset ) begin
             //--------------------- EXEC ---------------------
@@ -738,6 +744,9 @@ class Monitor extends Agent;
             endcase
 
             check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("sr2 unmatched! (%0x != %0x)", exec_sr2, sr2));
+            // FIXME
+            //check("A_EXEC", WARN, ctrl_enFetch === driverIf.instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
+            //      ctrl_enFetch, driverIf.instrmem_rd));
 
             //--------------------- MEM ---------------------
             check("A_MEM", WARN, mem_Dout === memout, $psprintf("memout unmatched! (%0x != %0x)", mem_Dout, memout));

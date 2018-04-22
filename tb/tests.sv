@@ -11,7 +11,7 @@ class BaseStoreLoadTest extends Test;
    // Populates env's instruct mem
    virtual function void sequenceInstr();
       //integer numTrans             = 8 + 100 + 100; // R0-7 + warmup + test
-      integer numTrans             = 100*9 + 100;
+      integer numTrans             = 100*9 + 200;
       integer ctrl = 0, mem = 0;
       integer instCnt              = 0;
       Instruction instMemEntry     = new;
