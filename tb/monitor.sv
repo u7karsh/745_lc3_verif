@@ -554,7 +554,7 @@ class Monitor extends Agent;
          endcase
 
          `ifdef DEBUG_CTRL
-            $display("BaseEnable  : F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
+            $display("BaseEnable: F: %0b D: %0b E: %0b W: %0b", ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB);
          `endif
 
          ctrl_stallEnState = ctrl_stallEnState_N;
@@ -608,22 +608,15 @@ class Monitor extends Agent;
          `endif
 
          // To enable mix of control and memory in the pipeline
-         ctrl_brEnState = |ctrl_stallEnState ? ctrl_brEnState : ctrl_brEnState_N;
-         //if( |ctrl_stallEnState ) begin
-         //   if( ctrl_brEnState_N  <= 2'b01 )
-         //      ctrl_brEnState = ctrl_brEnState_N;
-         //end else
-         //   ctrl_brEnState = ctrl_brEnState_N;
+         ctrl_brEnState = !ctrl_enFetch ? ctrl_brEnState : ctrl_brEnState_N;
 
          case(ctrl_brEnState)
             2'b00: begin //{
-               if( ctrl_fetch_enable ) begin
-                  case( ctrl_ImemOut[15:12] )
-                     BR, JMP: begin
-                        ctrl_brEnState_N = 2'b01;
-                     end
-                  endcase
-               end
+               case( ctrl_ImemOut[15:12] )
+                  BR, JMP: begin
+                     ctrl_brEnState_N = 2'b01;
+                  end
+               endcase
             end //}
             2'b01: begin ctrl_enFetch  = 0; ctrl_enUpPC = 0;                     ctrl_brEnState_N = 2'b10; end
             2'b10: begin ctrl_enFetch  = 0; ctrl_enUpPC = 0; ctrl_enDecode  = 0; ctrl_brEnState_N = 2'b11; end

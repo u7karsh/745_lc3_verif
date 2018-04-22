@@ -11,7 +11,7 @@ class BaseStoreLoadTest extends Test;
    // Populates env's instruct mem
    virtual function void sequenceInstr();
       //integer numTrans             = 8 + 100 + 100; // R0-7 + warmup + test
-      integer numTrans             = 100*9 + 700;
+      integer numTrans             = 100*9 + 1000;
       integer ctrl = 0, mem = 0;
       integer instCnt              = 0;
       Instruction instMemEntry     = new;
@@ -43,7 +43,7 @@ class BaseStoreLoadTest extends Test;
             opList[s+1]     = JMP;
          end
 
-         if( ctrl > `LC3_PIPE_DEPTH ) begin
+         if( mem > `LC3_PIPE_DEPTH ) begin
             integer s       = opList.size();
             opList          = new[s + 7](opList);
             opList[s]       = LD;
@@ -61,7 +61,7 @@ class BaseStoreLoadTest extends Test;
                baseR      ==    0;
             } ) begin
             if( instMemEntry.isCtrl() ) ctrl = 0;
-            if( instMemEntry.isMem()  ) ctrl = 0;
+            if( instMemEntry.isMem()  ) mem  = 0;
             pushInst(instMemEntry);
             ctrl  += 1;
             mem   += 1;
