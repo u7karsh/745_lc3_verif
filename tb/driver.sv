@@ -12,10 +12,10 @@ class Driver extends Agent;
 
          if( driverIf.instrmem_rd ) begin
             stallCnt                 = 0;
-            dynInstCount            += 1;
             // Feeding in trace
             // To feed in asm, uncomment pc - base_addr
             instMemIndex             = dynInstCount; // driverIf.pc - `BASE_ADDR;
+            dynInstCount            += 1;
             if( instMemIndex < 0 || instMemIndex >= getInstMemSize() || dynInstCount >= `DYN_INST_CNT ) begin
                $display("\t\tinstMemIndex: %0d, getInstMemSize: %0d, dynInstCount: %0d, DYN_INST_CNT: %0d", 
                instMemIndex, getInstMemSize(), dynInstCount, `DYN_INST_CNT );

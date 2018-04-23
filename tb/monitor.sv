@@ -105,12 +105,12 @@ class Monitor extends Agent;
          `ifdef DEBUG_FETCH
             $display("%t [MON.fetch] pc: %0x, npc: %0x, instrmem_rd: %b", 
                $time, fetchIf.pc, fetchIf.npc, fetchIf.instrmem_rd);
-		      $display("debugging ctrlrIf.br_taken::  %d",ctrlrIf.br_taken );
-		      $display("debugging execIf.pcout::  %d",execIf.pcout );
-		      
-		      $display("debugging enable_updatePC ::  %d",ctrlrIf.enable_updatePC);
-		      $display("debugging PC2 ::  %d",fetch_pc);
-		      $display("debugging NPC ::  %d",fetch_pc - `BASE_ADDR );
+            $display("debugging ctrlrIf.br_taken::  %d",ctrlrIf.br_taken );
+            $display("debugging execIf.pcout::  %d",execIf.pcout );
+            
+            $display("debugging enable_updatePC ::  %d",ctrlrIf.enable_updatePC);
+            $display("debugging PC2 ::  %d",fetch_pc);
+            $display("debugging NPC ::  %d",fetch_pc - `BASE_ADDR );
          `endif
       end//}
 
@@ -198,7 +198,7 @@ class Monitor extends Agent;
          endcase
 
          case(exec_bypass2)
-            2'b00: val_2 = exec_Ectrl[0] ? exec_vsr2 : {{11{exec_IR[4]}}, exec_IR[4:0]};		//immediate operation
+            2'b00: val_2 = exec_Ectrl[0] ? exec_vsr2 : {{11{exec_IR[4]}}, exec_IR[4:0]};      //immediate operation
             2'b01: val_2 = memIf.memout;
             2'b10: val_2 = exec_aluout;
          endcase
@@ -243,7 +243,7 @@ class Monitor extends Agent;
          end
 
          `ifdef DEBUG_EXEC
-            $display("%t EXEC: IR: 0x%0x(%0b) bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], exec_aluout, pcout, execIf.M_Data);
+            $display("%t EXEC: IR: 0x%0x(%0b) bypass1: %0b bypass2: %0b %0b val1: %0x val2: %0x vsr1: %0x vsr2: %0x %0x aluout: %0x pcout: %0x Mdata: %0x", $time, exec_IR, exec_IR, exec_bypass1, exec_bypass2, exec_Ectrl[5:4], val_1, val_2, exec_vsr1, exec_vsr2, exec_IR[4:0], aluout, pcout, execIf.M_Data);
          `endif
 
          check("EXEC", WARN, exec_Mdata === execIf.M_Data, $psprintf("[%s] mem data unmatched! (%0x != %0x) %0x %0x %0x %0x", 
@@ -371,7 +371,6 @@ class Monitor extends Agent;
          `ifdef DEBUG_WB
             $display("WrB: PSR %0b ALUOUT %0b PCOUT %0b MEMOUT %0b EXEALU %0b EXPCOUT %0b EXMEM %0b wb_wcontrol: %b REGFILE %0b", wb_psr, wb_aluout, wb_pcout, wb_memout, execIf.aluout, execIf.pcout, memIf.memout, wb_W_Control, regFile[wb_dr_in]);
          `endif
-    	
          if( wb_init ) begin //{
             wb_psr        = 3'b000;
             for( int i = 0; i < 8; i++ )
@@ -447,9 +446,9 @@ class Monitor extends Agent;
          ctrl_dec_opcode  = decodeIf.IR[15:12];
 
          //alu and load/store bits
-         ctrl_AluBit      = ((ctrl_exec_opcode == AND) || (ctrl_exec_opcode == ADD) || (ctrl_exec_opcode == NOT));
-         ctrl_storeBit    = ((ctrl_exec_opcode == ST ) || (ctrl_exec_opcode == STI) || (ctrl_exec_opcode == STR));
-         ctrl_loadBit     = ((ctrl_exec_opcode == LD ) || (ctrl_exec_opcode == LDI) || (ctrl_exec_opcode == LDR));
+         ctrl_AluBit      = ((ctrl_exec_opcode == AND) || (ctrl_exec_opcode == ADD)  || (ctrl_exec_opcode == NOT));
+         ctrl_storeBit    = ((ctrl_exec_opcode == ST ) || (ctrl_exec_opcode == STI)  || (ctrl_exec_opcode == STR));
+         ctrl_loadBit     = ((ctrl_exec_opcode == LD ) || (ctrl_exec_opcode == LDI)  || (ctrl_exec_opcode == LDR));
          ctrl_brBit       = ((ctrl_exec_opcode == BR ) || (ctrl_exec_opcode == JMP));
          ctrl_DSBit       = ((ctrl_dec_opcode  == ST ) || (ctrl_dec_opcode  == STI)  || (ctrl_dec_opcode == STR));
 
@@ -462,9 +461,9 @@ class Monitor extends Agent;
          header           = $psprintf("[E: %s: D: %s]", Instruction::op2str(ctrl_exec_opcode), Instruction::op2str(ctrl_dec_opcode));
 
          //------------------------------- BYPASS LOGIC BEGIN -------------------
-         //bypass ALU operation
-         //NOTE: initially ctrl_dec_opcode will have all 0's aka BR
-         //Following case won't be affected as branch is not used
+         // Bypass ALU operation
+         // NOTE: initially ctrl_dec_opcode will have all 0's aka BR
+         // Following case won't be affected as branch is not used
          case(ctrl_dec_opcode)
             ADD, AND, NOT: begin //{ 
                if(ctrl_AluBit || (ctrl_exec_opcode == LEA)) begin //{ 
@@ -476,20 +475,33 @@ class Monitor extends Agent;
                   ctrl_bpMem2  = !ctrl_decIR[5] ? (ctrl_dst == ctrl_sr2) : 0;
                end //}
             end //}
+
             LDR, JMP: begin //{
-               if(ctrl_AluBit) begin //{
+               if(ctrl_AluBit || (ctrl_exec_opcode == LEA)) begin //{ 
                   ctrl_bpAlu1  = (ctrl_dst == ctrl_sr1);
                end //}
+               else if(ctrl_loadBit) begin //{
+                  ctrl_bpMem1  = (ctrl_dst == ctrl_sr1);
+               end //}
             end //}
+
             STR: begin //{
-               if(ctrl_AluBit) begin //{
+               if(ctrl_AluBit || (ctrl_exec_opcode == LEA)) begin //{ 
                   ctrl_bpAlu1  = (ctrl_dst == ctrl_sr1);
                   ctrl_bpAlu2  = (ctrl_dst == ctrl_sr2);
                end //}
+               else if(ctrl_loadBit) begin //{
+                  ctrl_bpMem1  = (ctrl_dst == ctrl_sr1);
+                  ctrl_bpMem2  = !ctrl_decIR[5] ? (ctrl_dst == ctrl_sr2) : 0;
+               end //}
             end //}
+
             ST, STI: begin //{
-               if(ctrl_AluBit) begin //{
+               if(ctrl_AluBit || (ctrl_exec_opcode == LEA)) begin //{ 
                   ctrl_bpAlu2  = (ctrl_dst == ctrl_sr2);
+               end //}
+               else if(ctrl_loadBit) begin //{
+                  ctrl_bpMem2  = !ctrl_decIR[5] ? (ctrl_dst == ctrl_sr2) : 0;
                end //}
             end //}
          endcase

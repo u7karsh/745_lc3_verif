@@ -17,14 +17,19 @@ class Test; //{
    // all tests. It doesn't have LD/SD and BR as mem warmup
    // is not done
    virtual function void sequenceInstr();
-      integer numTrans             = 8 + 700;
+      integer numTrans             = 1 + 8 + 700;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
+
+      // TODO: quick fix: fix in driver to not miss first instruction
+      instMemEntry.create(AND, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+      pushInst(instMemEntry);
+
       for( int i = 0; i < 8; i++ ) begin
-         instMemEntry.create(AND, 7-i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+         instMemEntry.create(AND, i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
          pushInst(instMemEntry);
       end
-      for( int i = 0; i < numTrans - 8; i++ ) begin
+      for( int i = 0; i < numTrans - 8 - 1; i++ ) begin
          // Basic instructions
          opcode_t opList[]  = {ADD, /*BR,*/ AND, NOT/*, LD, LDR, LDI, LEA, ST, STI, STR*/};
 

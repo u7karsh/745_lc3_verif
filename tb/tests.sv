@@ -9,38 +9,42 @@ class MaxOneBrStoreLoadTest extends Test;
 
    // Populates env's instruct mem
    virtual function void sequenceInstr();
-      integer numTrans             = 8 + 1000;
+      integer numTrans             = 1 + 8 + 1000;
       integer count                = 8;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
       
-	   for( int i = 0; i < 8; i++ ) begin
-		   instMemEntry.create(AND, 7-i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+      // TODO: quick fix: fix in driver to not miss first instruction
+      instMemEntry.create(AND, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+      pushInst(instMemEntry);
+
+      for( int i = 0; i < 8; i++ ) begin
+         instMemEntry.create(AND, i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
          pushInst(instMemEntry);
       end
       
-	  for( int i = 0; i < numTrans - 8; i++ ) begin
-		  if( instMemEntry.randomize() 
-           with { 
-              if( count <= 0 )
-                 opcode    inside {ADD, AND, NOT, LD, LDR, LDI, LEA, ST, STI, STR, BR, JMP}; 
-              else
-                 opcode    inside {ADD, AND, NOT};
-              {N,Z,P}      inside {[3'b001:3'b111]};
-	           pcOffset9    inside {[0:999]};
-	           pcOffset6    inside {[0:100]};
-	           baseR        inside {[0:999]};
+      for( int i = 0; i < numTrans - 8 - 1; i++ ) begin
+         if( instMemEntry.randomize() 
+            with { 
+               if( count <= 0 )
+                  opcode    inside {ADD, AND, NOT, LD, LDR, LDI, LEA, ST, STI, STR, BR, JMP}; 
+               else
+                  opcode    inside {ADD, AND, NOT};
+               {N,Z,P}      inside {[3'b001:3'b111]};
+               pcOffset9    inside {[0:999]};
+               pcOffset6    inside {[0:100]};
+               baseR        inside {[0:999]};
 
-           } ) begin
-             count--;
-             if( instMemEntry.isMem() || instMemEntry.isCtrl() ) count = 8;
-             pushInst(instMemEntry);
-        end 
-		  else begin
-             $fatal(1, "Failed to randomize instMemEntry");
-             eos(0);
-          end
-        end
+            } ) begin
+              count--;
+              if( instMemEntry.isMem() || instMemEntry.isCtrl() ) count = 8;
+              pushInst(instMemEntry);
+         end 
+         else begin
+              $fatal(1, "Failed to randomize instMemEntry");
+              eos(0);
+         end
+      end
    endfunction
 endclass
 
