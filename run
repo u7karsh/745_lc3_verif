@@ -92,8 +92,9 @@ do_coverage(){
 rm -rf $MINI_REPORT
 
 ## All tests
-run_test BaseStoreLoadTest
-run_test Test 
+run_test MaxOneBrStoreLoadTest
+#run_test RandomBrStoreLoadTest
+#run_test Test 
 
 if [ $COV = 1 ]; then
    do_coverage

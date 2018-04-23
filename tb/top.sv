@@ -5,6 +5,7 @@
 
 //`define DEBUG_ALL
 
+`define DEBUG_BASIC
 //`define DEBUG_DRIVER
 //`define DEBUG_EXEC
 //`define DEBUG_FETCH
@@ -20,6 +21,7 @@
 `define T_DATA_MAX     0
 
 `ifdef DEBUG_ALL
+   `define DEBUG_BASIC
    `define DEBUG_DRIVER
    `define DEBUG_EXEC
    `define DEBUG_FETCH
