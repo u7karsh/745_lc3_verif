@@ -9,21 +9,17 @@ class MaxOneBrStoreLoadTest extends Test;
 
    // Populates env's instruct mem
    virtual function void sequenceInstr();
-      integer numTrans             = 1 + 8 + 1000;
+      integer numTrans             = 8 + 1000;
       integer count                = 8;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
       
-      // TODO: quick fix: fix in driver to not miss first instruction
-      instMemEntry.create(AND, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
-      pushInst(instMemEntry);
-
       for( int i = 0; i < 8; i++ ) begin
          instMemEntry.create(AND, i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
          pushInst(instMemEntry);
       end
       
-      for( int i = 0; i < numTrans - 8 - 1; i++ ) begin
+      for( int i = 0; i < numTrans - 8; i++ ) begin
          if( instMemEntry.randomize() 
             with { 
                if( count <= 0 )
@@ -31,10 +27,6 @@ class MaxOneBrStoreLoadTest extends Test;
                else
                   opcode    inside {ADD, AND, NOT};
                {N,Z,P}      inside {[3'b001:3'b111]};
-               pcOffset9    inside {[0:999]};
-               pcOffset6    inside {[0:100]};
-               baseR        inside {[0:999]};
-
             } ) begin
               count--;
               if( instMemEntry.isMem() || instMemEntry.isCtrl() ) count = 8;
@@ -58,31 +50,23 @@ class RandomBrStoreLoadTest extends Test;
 
    // Populates env's instruct mem
    virtual function void sequenceInstr();
-      //integer numTrans             = 8 + 100 + 100; // R0-7 + warmup + test
-      integer numTrans             = 100*9 + 1000;
+      integer numTrans             = 8 + 1000000;
       integer ctrl = 0, mem = 0;
       integer instCnt              = 0;
       Instruction instMemEntry     = new;
       env.instMem                  = new [numTrans];
 
-      // Warmup 0-100 addresses
-      // Between all stores, initialize all regs to 0
+      // Warmup R0-R8
+      // Memory is already pre-warmed up
       // AND R0, R0, #0
-      for( int i = 0; i < 100; i++ ) begin
-         instMemEntry.create(STR, 0, 0, 0, 0, 0, 0, i, 0, 0, 0, 0);
+      for( int i = 0; i < 8; i++ ) begin
+         instMemEntry.create(AND, i, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
          pushInst(instMemEntry);
-         for( int j = 0; j < 8; j++ ) begin
-            instMemEntry.create(AND, j, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
-            pushInst(instMemEntry);
-         end
       end
 
-      for( int i = 0; i < numTrans - 100*9; i++ ) begin
-         int position             = i + 100*9;
+      for( int i = 0; i < numTrans - 8; i++ ) begin
          // Basic instructions
          opcode_t opList[]        = {ADD, AND, NOT};
-         reg [8:0] startAddr      = 0;
-         reg [8:0] endAddr        = numTrans - position - 1;
 
          if( ctrl > `LC3_PIPE_DEPTH ) begin
             integer s       = opList.size();
@@ -105,8 +89,6 @@ class RandomBrStoreLoadTest extends Test;
 
          if( instMemEntry.randomize() with { 
                opcode    inside {opList};
-               pcOffset6 inside { [startAddr:endAddr] };
-               baseR      ==    0;
             } ) begin
             if( instMemEntry.isCtrl() ) ctrl = 0;
             if( instMemEntry.isMem()  ) mem  = 0;

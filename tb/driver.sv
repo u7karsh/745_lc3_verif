@@ -5,6 +5,9 @@ class Driver extends Agent;
       integer dynInstCount    = 0;
       integer instMemIndex;
       integer stallCnt        = 0;
+      // TODO: quick fix: 1st instruction is not being clocked
+      // so clock it twice
+      bit     redoInst        = 1;
 
       Instruction dInst;
       while(1) begin
@@ -15,10 +18,10 @@ class Driver extends Agent;
             // Feeding in trace
             // To feed in asm, uncomment pc - base_addr
             instMemIndex             = dynInstCount; // driverIf.pc - `BASE_ADDR;
-            dynInstCount            += 1;
-            if( instMemIndex < 0 || instMemIndex >= getInstMemSize() || dynInstCount >= `DYN_INST_CNT ) begin
-               $display("\t\tinstMemIndex: %0d, getInstMemSize: %0d, dynInstCount: %0d, DYN_INST_CNT: %0d", 
-               instMemIndex, getInstMemSize(), dynInstCount, `DYN_INST_CNT );
+            if( !redoInst )
+               dynInstCount         += 1;
+            if( instMemIndex < 0 || instMemIndex >= getInstMemSize() ) begin
+               $display("\t\tinstMemIndex: %0d, getInstMemSize: %0d", instMemIndex, getInstMemSize());
                $display("\t\tGracefully exitting testcase");
                break;
             end
@@ -40,7 +43,8 @@ class Driver extends Agent;
          end
          else
             stallCnt                     += 1;
-   
+
+         redoInst                         = 0;
          // One clock delay
          @(posedge driverIf.clk);
       end
@@ -68,7 +72,6 @@ class Driver extends Agent;
             `endif
             writeDataMem( driverIf.Data_addr, driverIf.Data_din );
          end
-
          // One clock delay
          @(posedge driverIf.clk);
       end

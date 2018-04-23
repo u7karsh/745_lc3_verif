@@ -1,6 +1,5 @@
 `define STALL_THRESH   1000
 `define BASE_ADDR      16'h3000
-`define DYN_INST_CNT   100000
 `define LC3_PIPE_DEPTH 6
 
 //`define DEBUG_ALL
