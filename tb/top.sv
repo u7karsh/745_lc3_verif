@@ -14,7 +14,6 @@
 //`define DEBUG_TEST
 
 //`define TOP_MONITOR
-//`define RUN_FIXME
 
 // TODO: Future scope
 `define T_FETCH_MAX    0

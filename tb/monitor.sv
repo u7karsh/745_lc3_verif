@@ -331,14 +331,14 @@ class Monitor extends Agent;
             end //}
          endcase
 
-         //FIXME: Instruction opcode as exec_IR (change it)
-         check("MEM", WARN, mem_Dmem_rd === memIf.Data_rd, $psprintf("[%s] mem read unmatched! (%0x != %0x)", 
+         // Instruction opcode as exec_IR
+         check("MEM", WARN, mem_Dmem_rd === memIf.Data_rd, $psprintf("[InExec: %s] mem read unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), mem_Dmem_rd, memIf.Data_rd));
 
-         check("MEM", WARN, mem_Dmem_din === memIf.Data_din, $psprintf("[%s] mem din unmatched! (%0x != %0x)", 
+         check("MEM", WARN, mem_Dmem_din === memIf.Data_din, $psprintf("[InExec: %s] mem din unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), mem_Dmem_din, memIf.Data_din));
 
-         check("MEM", WARN, mem_Dmem_addr === memIf.Data_addr, $psprintf("[%s] mem addr unmatched! (%0x != %0x)", 
+         check("MEM", WARN, mem_Dmem_addr === memIf.Data_addr, $psprintf("[InExec: %s] mem addr unmatched! (%0x != %0x)", 
             Instruction::op2str(exec_IR[15:12]), mem_Dmem_addr, memIf.Data_addr));
       end //}
       else begin //{
@@ -577,13 +577,6 @@ class Monitor extends Agent;
                      LD, LDR, LDI,
                      STI, ST, STR  : begin ctrl_stallEnState_N = 2'b01; ctrl_Imem_stash = ctrl_dec_opcode; end
                   endcase
-                  // FIXME: Just why?
-                  `ifdef RUN_FIXME
-                     if( ctrl_dec_opcode == LDI ) begin //|| ctrl_dec_opcode == LDR ) begin
-                        ctrl_enFetch   = 0;
-                        ctrl_enUpPC    = 0;
-                     end
-                  `endif
                end //}
             end //}
 
@@ -712,7 +705,28 @@ class Monitor extends Agent;
       end //}
    endfunction //}
 
-   task async_exec();
+   task async_exec_1();
+      logic        instrmem_rd;
+      logic        exec_instrmem_rd;
+      forever begin
+         // Sample and hold DUT signals
+         instrmem_rd      = driverIf.instrmem_rd;
+         // TODO: Can we assume correctness based on the following:
+         // 1. DUT and model enable signals are matching
+         // 2. instrmem_rd is async with enable fetch
+         // 3. fetch has a few async gitches so can't use model signals
+         exec_instrmem_rd = ctrlrIf.enable_fetch;
+         // Sensitize on all DUT async signals
+         @(driverIf.instrmem_rd);
+         if( !monIf.reset ) begin
+            //--------------------- EXEC ---------------------
+            check("A_EXEC", WARN, exec_instrmem_rd === instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
+                  exec_instrmem_rd, instrmem_rd));
+         end
+      end
+   endtask
+
+   task async_exec_2();
       logic [2:0]  sr1, sr2;
       logic [2:0]  exec_sr1, exec_sr2;
       logic [16:0] async_exec_IR;
@@ -733,20 +747,16 @@ class Monitor extends Agent;
                ADD: begin exec_sr2 = async_exec_IR[02:0]; verif_sr1 = 1; verif_sr2 = !async_exec_IR[5]; end
                AND: begin exec_sr2 = async_exec_IR[02:0]; verif_sr1 = 1; verif_sr2 = !async_exec_IR[5]; end
                NOT: begin exec_sr2 = async_exec_IR[02:0]; verif_sr1 = 1; verif_sr2 = !async_exec_IR[5]; end
-               LD : begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
-               LDR: begin exec_sr2 =                   0; verif_sr1 = 1; verif_sr2 = 0; end
-               LDI: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
-               LEA: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
-               ST : begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 0; end
-               STR: begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 1; end
-               STI: begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 0; end
-               BR : begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end
-               JMP: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0; end 
+               LD : begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0;                 end
+               LDR: begin exec_sr2 =                   0; verif_sr1 = 1; verif_sr2 = 0;                 end
+               LDI: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0;                 end
+               LEA: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0;                 end
+               ST : begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 0;                 end
+               STR: begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 1;                 end
+               STI: begin exec_sr2 = async_exec_IR[11:9]; verif_sr1 = 1; verif_sr2 = 0;                 end
+               BR : begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0;                 end
+               JMP: begin exec_sr2 =                   0; verif_sr1 = 0; verif_sr2 = 0;                 end 
             endcase
-
-            // FIXME
-            //check("A_EXEC", WARN, ctrl_enFetch === driverIf.instrmem_rd, $psprintf("instrmem_rd unmatched! (%0x != %0x)",
-            //      ctrl_enFetch, driverIf.instrmem_rd));
 
             if( verif_sr1 )
                check("A_EXEC", WARN, exec_sr1 === sr1, $psprintf("%s sr1 unmatched! (%0x != %0x) IR: %0b",
@@ -756,8 +766,14 @@ class Monitor extends Agent;
                check("A_EXEC", WARN, exec_sr2 === sr2, $psprintf("%s sr2 unmatched! (%0x != %0x) IR: %0b", 
                Instruction::op2str(async_exec_IR[15:12]), exec_sr2, sr2, async_exec_IR));
          end
-
       end
+   endtask
+
+   task async_exec();
+      fork
+         async_exec_1();
+         async_exec_2();
+      join
    endtask
 
    task async_mem();
