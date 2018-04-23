@@ -86,9 +86,12 @@ class Monitor extends Agent;
    reg [1:0]  ctrl_brEnState_N;
    reg        ctrl_complete_data;
    reg        ctrl_complete_instr;
-   reg        ctrl_decode_enable;
    reg        ctrl_fetch_enable;
+   reg        ctrl_decode_enable;
+   reg        ctrl_exec_enable;
+   reg        ctrl_wb_enable;
    reg        ctrl_enUpPC, ctrl_enFetch, ctrl_enDecode, ctrl_enExec, ctrl_enWB;
+   reg [3:0]  ctrl_bubble;
 
    //------------------------FETCH-------------
    function void fetch(); //{
@@ -532,6 +535,8 @@ class Monitor extends Agent;
          //---------------------- ENABLE SIGNALS BEGIN ---------------------
          ctrl_brTaken         = ctrl_Imem_br_jmp ? (|(ctrl_NZP & ctrl_psr) ? 1 : 0) : 0;
          ctrl_enUpPC          = ctrl_complete_instr;
+         ctrl_bubble          = {ctrl_bubble[2], ctrl_bubble[1], !ctrl_complete_instr, 1'b0};
+         $display("state: %x %0b bubble: %0b", ctrl_enState_N, ctrl_complete_instr, ctrl_bubble);
 
          ctrl_enState         = ctrl_enState_N;
          case(ctrl_enState)
@@ -544,23 +549,23 @@ class Monitor extends Agent;
             end //}
             2'b01: begin 
                ctrl_enFetch   = 1;
-               ctrl_enDecode  = 1;
+               ctrl_enDecode  = !ctrl_bubble[1];
                ctrl_enExec    = 0;
                ctrl_enWB      = 0;
                ctrl_enState_N = 2'b10;
             end //}
             2'b10: begin //{
                ctrl_enFetch   = 1;
-               ctrl_enDecode  = 1;
-               ctrl_enExec    = 1;
+               ctrl_enDecode  = !ctrl_bubble[1];
+               ctrl_enExec    = !ctrl_bubble[2];
                ctrl_enWB      = 0;
                ctrl_enState_N = 2'b11;
             end //}
             2'b11: begin //{
                ctrl_enFetch   = 1;
-               ctrl_enDecode  = 1;
-               ctrl_enExec    = 1;
-               ctrl_enWB      = 1;
+               ctrl_enDecode  = !ctrl_bubble[1];
+               ctrl_enExec    = !ctrl_bubble[2];
+               ctrl_enWB      = !ctrl_bubble[3];
                ctrl_enState_N = 2'b11;
             end //}
          endcase
@@ -572,12 +577,10 @@ class Monitor extends Agent;
          ctrl_stallEnState = ctrl_stallEnState_N;
          case(ctrl_stallEnState)
             2'b00: begin //{
-               if( ctrl_decode_enable ) begin //{
-                  case(ctrl_dec_opcode)
-                     LD, LDR, LDI,
-                     STI, ST, STR  : begin ctrl_stallEnState_N = 2'b01; ctrl_Imem_stash = ctrl_dec_opcode; end
-                  endcase
-               end //}
+               case(ctrl_dec_opcode)
+                  LD, LDR, LDI,
+                  STI, ST, STR  : begin ctrl_stallEnState_N = 2'b01; ctrl_Imem_stash = ctrl_dec_opcode; end
+               endcase
             end //}
 
             2'b01: begin //{
@@ -681,8 +684,10 @@ class Monitor extends Agent;
             header, ctrl_enUpPC, ctrlrIf.enable_updatePC));
            
          //---------------------- ENABLE SIGNALS END ----------------------
-         ctrl_decode_enable = ctrl_enDecode;
          ctrl_fetch_enable  = ctrl_enFetch;
+         ctrl_decode_enable = ctrl_enDecode;
+         ctrl_exec_enable   = ctrl_enExec;
+         ctrl_wb_enable     = ctrl_enWB;
       end //}
 
       // Pipeline regs
@@ -700,8 +705,11 @@ class Monitor extends Agent;
          ctrl_stallEnState_N = 0;
          ctrl_brEnState      = 0;
          ctrl_brEnState_N    = 0;
-         ctrl_decode_enable  = 0;
          ctrl_fetch_enable   = 0;
+         ctrl_decode_enable  = 0;
+         ctrl_exec_enable    = 0;
+         ctrl_wb_enable      = 0;
+         ctrl_bubble         = 0;
       end //}
    endfunction //}
 

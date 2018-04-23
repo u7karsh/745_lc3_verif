@@ -9,13 +9,13 @@
 //`define DEBUG_EXEC
 //`define DEBUG_FETCH
 //`define DEBUG_WB
-//`define DEBUG_CTRL
+`define DEBUG_CTRL
 //`define DEBUG_TEST
 
-//`define TOP_MONITOR
+`define TOP_MONITOR
 
 // TODO: Future scope
-`define T_FETCH_MAX    0
+`define T_FETCH_MAX    4
 `define T_DATA_MAX     0
 
 `ifdef DEBUG_ALL

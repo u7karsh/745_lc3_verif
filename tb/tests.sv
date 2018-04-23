@@ -23,7 +23,7 @@ class MaxOneBrStoreLoadTest extends Test;
          if( instMemEntry.randomize() 
             with { 
                if( count <= 0 )
-                  opcode    inside {ADD, AND, NOT, LD, LDR, LDI, LEA, ST, STI, STR, BR, JMP}; 
+                  opcode    inside {ADD, AND, NOT, LD, LDR, LDI, LEA, ST, STI, STR/*, BR, JMP*/}; 
                else
                   opcode    inside {ADD, AND, NOT};
                {N,Z,P}      inside {[3'b001:3'b111]};
